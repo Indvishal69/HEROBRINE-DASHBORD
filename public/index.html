@@ -1204,7 +1204,7 @@
     /* UPDATE PROVIDER & MODELS PRESETS UI */
     function updateProviderPresetsUI(currentProvider, currentModel) {
       const provSelect = $("aiProvider");
-      if (document.activeElement !== provSelect) provSelect.value = currentProvider;
+      provSelect.value = currentProvider;
 
       const modelSelect = $("aiModelSelect");
       const providerInfo = presetsData[currentProvider];
@@ -1241,6 +1241,7 @@
         $("aiBaseUrl").value = info.baseUrl;
         updateProviderPresetsUI(p, info.models[0]?.id || "");
         $("aiModel").value = info.models[0]?.id || "";
+        guarded(saveAIOptions);
       }
     });
 
@@ -1250,8 +1251,12 @@
       } else {
         $("customModelField").style.display = "none";
         $("aiModel").value = e.target.value;
+        guarded(saveAIOptions);
       }
     });
+
+    $("aiBaseUrl").addEventListener("change", () => guarded(saveAIOptions));
+    $("aiModel").addEventListener("change", () => guarded(saveAIOptions));
 
     /* SAVE SETTINGS */
     async function saveSettings() {
@@ -1263,6 +1268,7 @@
         username: $("username").value.trim() || "AIBuddy"
       };
       const out = await post("/api/settings", settings);
+      if (latestState) latestState.settings = out.settings;
       $("savedNote").textContent = "Saved on this PC. Applies to current/next connection.";
       notify("Server settings saved");
       return out.settings;
@@ -1270,7 +1276,7 @@
 
     function aiOptions() {
       const provider = $("aiProvider").value;
-      const model = $("aiModelSelect").value === "__custom__" ? $("aiModel").value.trim() : $("aiModelSelect").value;
+      const model = $("aiModelSelect").value === "__custom__" ? $("aiModel").value.trim() : ($("aiModelSelect").value || $("aiModel").value.trim());
       return {
         provider,
         baseUrl: $("aiBaseUrl").value.trim(),
@@ -1281,8 +1287,10 @@
     }
 
     async function saveAIOptions() {
-      const out = await post("/api/ai/settings", aiOptions());
-      notify("AI settings saved");
+      const opts = aiOptions();
+      const out = await post("/api/ai/settings", opts);
+      if (latestState?.ai) Object.assign(latestState.ai, out.ai);
+      notify(`AI set to ${opts.provider.toUpperCase()} (${opts.model})`);
     }
 
     async function guarded(task) {
@@ -1385,13 +1393,14 @@
       button.textContent = "Connecting…";
       try {
         const rawKeys = $("aiApiKey").value.trim();
+        const opts = aiOptions();
         await post("/api/ai/connect", {
-          ...aiOptions(),
+          ...opts,
           apiKeys: rawKeys,
           apiKey: rawKeys
         });
         $("aiApiKey").value = "";
-        notify("AI Provider connected! Keys ready in stack.");
+        notify(`Connected to ${opts.provider.toUpperCase()} (${opts.model})! Keys ready.`);
       } finally {
         button.disabled = false;
         button.textContent = "Test & Connect AI";

@@ -137,7 +137,15 @@ const aiSettings = {
   trigger: "@buddy"
 };
 try {
-  Object.assign(aiSettings, JSON.parse(await fs.readFile(aiSettingsPath, "utf8")));
+  const loaded = JSON.parse(await fs.readFile(aiSettingsPath, "utf8"));
+  if (!loaded.provider) {
+    if (loaded.baseUrl?.includes("generativelanguage.googleapis.com")) loaded.provider = "gemini";
+    else if (loaded.baseUrl?.includes("api.groq.com")) loaded.provider = "groq";
+    else if (loaded.baseUrl?.includes("api.openai.com")) loaded.provider = "openai";
+    else if (loaded.baseUrl?.includes("localhost:11434")) loaded.provider = "ollama";
+    else if (loaded.baseUrl?.includes("openrouter.ai")) loaded.provider = "openrouter";
+  }
+  Object.assign(aiSettings, loaded);
 } catch (error) {
   if (error?.code !== "ENOENT") throw error;
 }
@@ -288,7 +296,8 @@ async function requestAI(messages, config = aiSettings, keys = aiApiKeys) {
       const payload = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        const errorMsg = String(payload?.error?.message || payload?.message || `HTTP ${response.status}`);
+        const errObj = Array.isArray(payload) ? payload[0]?.error : payload?.error;
+        const errorMsg = String(errObj?.message || payload?.message || `HTTP ${response.status}`);
         const isRateLimitOrQuota = response.status === 429 || response.status === 402 || response.status === 401 ||
           /rate limit|quota|credits|exceeded|too many requests|unauthorized/i.test(errorMsg);
 

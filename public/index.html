@@ -1189,13 +1189,17 @@
       $("disconnectButton").disabled = !connected;
 
       // 3D Viewer Frame
-      $("viewerEmpty").hidden = Boolean(connected && state.viewerAvailable);
+      const showViewer = Boolean(connected && (state.viewerAvailable !== false));
+      $("viewerEmpty").hidden = showViewer;
       const frame = $("viewer");
-      frame.hidden = !(connected && state.viewerAvailable);
-      const url = state.viewerUrl || "";
-      if (connected && state.viewerAvailable && frame.dataset.src !== url) {
+      frame.hidden = !showViewer;
+      const url = state.viewerUrl || "/viewer/";
+      if (showViewer && frame.dataset.src !== url) {
         frame.src = url;
         frame.dataset.src = url;
+      } else if (!showViewer && frame.dataset.src) {
+        frame.src = "about:blank";
+        frame.dataset.src = "";
       }
 
       renderChat(state.chat || []);

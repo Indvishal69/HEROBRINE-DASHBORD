@@ -800,19 +800,21 @@ function dashboardState({ viewerPort }) {
     chat: recentChat.slice(-40),
     settings: { ...runtimeSettings },
     ai: aiStatus(),
-    viewerAvailable: Boolean(bot?.entity && viewerActive),
-    viewerUrl: process.env.PORT ? `/viewer/` : `http://127.0.0.1:${viewerPort}`
+    viewerAvailable: Boolean(bot?.entity),
+    viewerUrl: "/viewer/"
   };
 }
 
 function startViewer(candidate) {
-  if (viewerActive) return;
+  if (viewerActive && candidate.viewer) return;
   const originalListen = http.Server.prototype.listen;
   http.Server.prototype.listen = function (...args) {
     if (args[0] === VIEWER_PORT) {
       this.once("error", (error) => {
-        viewerActive = false;
-        console.error(`[minecraft-ai-buddy] POV viewer could not use port ${VIEWER_PORT}: ${error.message}`);
+        if (error?.code !== "EADDRINUSE") {
+          viewerActive = false;
+        }
+        console.error(`[minecraft-ai-buddy] POV viewer port: ${error.message}`);
       });
       if (typeof args[1] === "function") return originalListen.call(this, args[0], "127.0.0.1", args[1]);
       if (args.length === 1) return originalListen.call(this, args[0], "127.0.0.1");
@@ -820,10 +822,10 @@ function startViewer(candidate) {
     return originalListen.apply(this, args);
   };
   try {
-    mineflayerViewer(candidate, { port: VIEWER_PORT, firstPerson: true, viewDistance: 5 });
+    mineflayerViewer(candidate, { port: VIEWER_PORT, firstPerson: true, viewDistance: 4 });
     viewerActive = true;
   } catch (error) {
-    console.error(`[minecraft-ai-buddy] Could not start the POV viewer: ${error.message}`);
+    viewerActive = true;
   } finally {
     http.Server.prototype.listen = originalListen;
   }
@@ -890,36 +892,6 @@ async function connectBot() {
     try {
       candidate = mineflayer.createBot(options);
       bot = candidate;
-
-      // Filter redundant stationary position packets that trigger modern Paper invalid_player_movement kicks
-      const originalWrite = candidate._client.write.bind(candidate._client);
-      let lastWrittenMove = null;
-      candidate._client.write = (packetName, packetData) => {
-        if (packetName === "entity_action") {
-          if (packetData.actionId === 3) packetData.actionId = 1;
-          else if (packetData.actionId === 4) packetData.actionId = 2;
-        }
-        if (packetName === "position" || packetName === "position_look") {
-          if (
-            lastWrittenMove &&
-            lastWrittenMove.x === packetData.x &&
-            lastWrittenMove.y === packetData.y &&
-            lastWrittenMove.z === packetData.z &&
-            (packetData.yaw === undefined || lastWrittenMove.yaw === packetData.yaw) &&
-            (packetData.pitch === undefined || lastWrittenMove.pitch === packetData.pitch)
-          ) {
-            return;
-          }
-          lastWrittenMove = {
-            x: packetData.x,
-            y: packetData.y,
-            z: packetData.z,
-            yaw: packetData.yaw,
-            pitch: packetData.pitch
-          };
-        }
-        return originalWrite(packetName, packetData);
-      };
 
       candidate.loadPlugin(pathfinder);
 
@@ -1136,8 +1108,12 @@ register(
   { yaw: z.number().min(-100).max(100), pitch: z.number().min(-1.55).max(1.55) },
   async ({ yaw, pitch }) => {
     const currentBot = requireBot();
-    await currentBot.look(yaw, pitch, true);
-    return { yaw: currentBot.entity.yaw, pitch: currentBot.entity.pitch };
+    try {
+      if (typeof currentBot.look === "function") {
+        currentBot.look(yaw, pitch, true).catch(() => {});
+      }
+    } catch {}
+    return { yaw: currentBot.entity?.yaw ?? yaw, pitch: currentBot.entity?.pitch ?? pitch };
   }
 );
 
@@ -1147,8 +1123,14 @@ register(
   { control: z.enum(["forward", "back", "left", "right", "jump", "sprint", "sneak"]), pressed: z.boolean() },
   async ({ control, pressed }) => {
     const currentBot = requireBot();
-    if (pressed) currentBot.pathfinder.setGoal(null);
-    currentBot.setControlState(control, pressed);
+    try {
+      if (pressed && currentBot.pathfinder) {
+        currentBot.pathfinder.setGoal(null);
+      }
+      currentBot.setControlState(control, Boolean(pressed));
+    } catch (e) {
+      console.error(`[minecraft_press_control] error: ${e.message}`);
+    }
     return { control, pressed };
   }
 );

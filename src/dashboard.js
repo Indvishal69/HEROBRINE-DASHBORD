@@ -39,12 +39,16 @@ export function startDashboard({ port, viewerPort, getState, executeTool, saveSe
   // 1. REVERSE PROXY FOR 3D VIEWER (Essential for Render & Single-Port Access)
   app.use("/viewer", (req, res) => {
     const targetPath = req.url || "/";
+    const headers = { ...req.headers };
+    headers.host = `127.0.0.1:${viewerPort}`;
+    delete headers.origin;
+    delete headers.referer;
     const options = {
       hostname: "127.0.0.1",
       port: viewerPort,
       path: targetPath,
       method: req.method,
-      headers: { ...req.headers, host: `127.0.0.1:${viewerPort}` }
+      headers
     };
     const proxyReq = http.request(options, (proxyRes) => {
       res.writeHead(proxyRes.statusCode, proxyRes.headers);
@@ -108,10 +112,7 @@ export function startDashboard({ port, viewerPort, getState, executeTool, saveSe
   app.get("/api/state", (req, res) => {
     const isAuth = checkToken(req);
     const state = getState({ viewerPort });
-    // In production or Render, provide /viewer/ for single-port access
-    const hostHeader = req.get("host") || "";
-    const isLocal = hostHeader.includes("localhost") || hostHeader.includes("127.0.0.1");
-    const viewerUrl = isLocal ? `http://127.0.0.1:${viewerPort}` : `/viewer/`;
+    const viewerUrl = "/viewer/";
     res.json({ ...state, viewerUrl, authenticated: isAuth });
   });
 
@@ -203,10 +204,14 @@ export function startDashboard({ port, viewerPort, getState, executeTool, saveSe
   webServer.on("upgrade", (req, clientSocket, head) => {
     if (req.url.startsWith("/viewer")) {
       const targetPath = req.url.replace(/^\/viewer/, "") || "/";
+      const headers = { ...req.headers };
+      headers.host = `127.0.0.1:${viewerPort}`;
+      delete headers.origin;
+      delete headers.referer;
       const proxySocket = net.connect(viewerPort, "127.0.0.1", () => {
         proxySocket.write(
           `${req.method} ${targetPath} HTTP/1.1\r\n` +
-          Object.entries(req.headers).map(([k, v]) => `${k}: ${v}`).join("\r\n") +
+          Object.entries(headers).map(([k, v]) => `${k}: ${v}`).join("\r\n") +
           "\r\n\r\n"
         );
         if (head.length > 0) proxySocket.write(head);

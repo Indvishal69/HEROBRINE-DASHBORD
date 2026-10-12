@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: minecraft-ai-buddy
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      - key: DASHBOARD_PASSWORD
+        value: buddy123
+      - key: MC_HOST
+        value: phantomhorizon549.mcsh.io
+      - key: MC_PORT
+        value: "25565"
+      - key: MC_AUTH
+        value: offline
+      - key: MC_USERNAME
+        value: AIBuddy
+      - key: OPENROUTER_API_KEY
+        sync: false

@@ -1,0 +1,28 @@
+{
+  "name": "minecraft-ai-buddy",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A free local Minecraft Java dashboard with first-person viewer and Codex MCP controls.",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.1",
+    "canvas": "^3.2.3",
+    "dotenv": "^18.0.7",
+    "express": "^4.22.3",
+    "mineflayer": "^4.39.0",
+    "mineflayer-pathfinder": "^2.4.5",
+    "prismarine-viewer": "^1.33.0",
+    "socket.io": "^4.8.4",
+    "vec3": "^0.1.10",
+    "zod": "^3.25.76"
+  },
+  "overrides": {
+    "uuid": "^11.1.1"
+  }
+}

@@ -1,0 +1,1602 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101512">
+  <title>Minecraft AI Buddy - Live First-Person POV & Controls</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0c100e;
+      --panel: #141b17;
+      --panel2: #19231d;
+      --line: #26352b;
+      --text: #ecf2ec;
+      --muted: #92a096;
+      --green: #80d46e;
+      --green2: #b1ef8a;
+      --red: #ff766b;
+      --amber: #f3c36b;
+      --blue: #91c9e9;
+      --purple: #c084fc;
+      --shadow: 0 18px 48px #00000066;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: radial-gradient(ellipse at 68% -20%, #233c2a 0, transparent 42%), var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+    button, input, select, textarea { font: inherit; }
+    button {
+      cursor: pointer;
+      color: var(--text);
+      border: 1px solid var(--line);
+      background: #202b24;
+      border-radius: 10px;
+      padding: 9px 12px;
+      transition: .16s ease;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+    button:hover { border-color: #56745e; background: #26372a; transform: translateY(-1px); }
+    button:active { transform: translateY(0); }
+    button:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+    .primary { background: var(--green); border-color: var(--green); color: #102011; font-weight: 800; }
+    .primary:hover { background: var(--green2); border-color: var(--green2); }
+    .danger { color: #ffd3cf; border-color: #713e3a; background: #3a211f; }
+    .danger:hover { background: #4d2421; border-color: #924a44; }
+    .ghost { background: transparent; }
+    .full { width: 100%; }
+    .muted { color: var(--muted); }
+    .tiny { font-size: 11px; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+
+    /* Top bar */
+    .topbar {
+      height: 68px;
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid #ffffff0f;
+      background: #0c100ecc;
+      backdrop-filter: blur(16px);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .brand-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      display: grid;
+      place-items: center;
+      background: linear-gradient(145deg, #31573c, #1b3021);
+      font-size: 22px;
+      border: 1px solid #486b4f;
+    }
+    .brand-name { font-weight: 800; letter-spacing: .01em; font-size: 15px; }
+    .brand-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .top-right { display: flex; align-items: center; gap: 10px; }
+    .local-pill, .status-pill {
+      padding: 6px 12px;
+      border: 1px solid var(--line);
+      border-radius: 99px;
+      font-size: 11px;
+      letter-spacing: .06em;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: #65746a; box-shadow: 0 0 0 3px #65746a20; }
+    .status-pill.online { color: var(--green2); border-color: #436146; background: #16241a; }
+    .status-pill.online .dot { background: var(--green); box-shadow: 0 0 0 3px #80d46e22; }
+    .status-pill.connecting .dot { background: var(--amber); box-shadow: 0 0 0 3px #f3c36b22; }
+
+    /* Layout */
+    .layout {
+      max-width: 1780px;
+      margin: 0 auto;
+      padding: 18px;
+      display: grid;
+      grid-template-columns: 310px minmax(520px, 1fr) 340px;
+      gap: 16px;
+      align-items: start;
+    }
+    .stack { display: grid; gap: 16px; min-width: 0; }
+    .card {
+      background: linear-gradient(160deg, #171f1a, #121814);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .card-head {
+      padding: 13px 16px 11px;
+      border-bottom: 1px solid #ffffff0b;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .card-title { font-size: 13px; font-weight: 750; letter-spacing: .02em; }
+    .card-kicker { font-size: 10px; text-transform: uppercase; color: var(--muted); letter-spacing: .12em; font-weight: 700; }
+    .card-body { padding: 14px 16px; }
+
+    /* Form Fields */
+    .form-grid { display: grid; grid-template-columns: 1fr 90px; gap: 9px; }
+    .field { display: grid; gap: 5px; }
+    .field.wide { grid-column: 1/-1; }
+    .field label { font-size: 11px; color: #a8b5ab; font-weight: 600; display: flex; justify-content: space-between; }
+    .field input, .field select, .field textarea {
+      width: 100%;
+      background: #0e1410;
+      border: 1px solid #2b3a30;
+      color: var(--text);
+      border-radius: 9px;
+      padding: 9px 10px;
+      outline: none;
+      min-width: 0;
+      transition: .15s ease;
+    }
+    .field textarea { resize: vertical; min-height: 64px; line-height: 1.4; font-size: 12px; }
+    .field input:focus, .field select:focus, .field textarea:focus {
+      border-color: #77bb6c;
+      box-shadow: 0 0 0 3px #80d46e16;
+    }
+    .button-row { display: flex; gap: 8px; margin-top: 12px; }
+    .button-row > * { flex: 1; }
+    .saved-note { font-size: 11px; color: var(--muted); margin-top: 8px; line-height: 1.4; min-height: 14px; }
+    .check-row { display: flex; align-items: center; gap: 8px; margin-top: 11px; font-size: 11px; color: #cbd8cd; }
+    .check-row input { accent-color: var(--green); width: 16px; height: 16px; cursor: pointer; }
+
+    /* Vitals */
+    .vitals { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .vital { background: #0e1510; border: 1px solid #243329; border-radius: 11px; padding: 10px; }
+    .vital-label { font-size: 10px; color: var(--muted); font-weight: 700; text-transform: uppercase; }
+    .vital-value { font-size: 18px; font-weight: 800; margin-top: 4px; display: flex; align-items: baseline; gap: 4px; }
+    .bar { height: 6px; border-radius: 6px; background: #27332b; margin-top: 7px; overflow: hidden; }
+    .bar > i { display: block; height: 100%; background: var(--green); border-radius: 6px; width: 0; transition: width .3s ease; }
+    .bar.food > i { background: var(--amber); }
+    .position {
+      margin-top: 9px;
+      padding: 9px 12px;
+      border-radius: 9px;
+      background: #0e1510;
+      border: 1px solid #243329;
+      font-size: 11px;
+      color: #c5d1c7;
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .inventory { display: flex; flex-wrap: wrap; gap: 6px; max-height: 110px; overflow: auto; margin-top: 6px; }
+    .item-chip {
+      border: 1px solid #34463a;
+      background: #1a271e;
+      border-radius: 7px;
+      padding: 4px 7px;
+      font-size: 11px;
+      color: #cfe0d0;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .item-chip b { color: var(--green2); }
+
+    /* Viewer Container & Interactive Game HUD */
+    .viewer-card { min-height: 540px; position: relative; }
+    .viewer-head { height: 50px; }
+    .viewer-wrap {
+      position: relative;
+      height: min(62vh, 680px);
+      min-height: 420px;
+      background: #050806;
+      overflow: hidden;
+    }
+    .viewer-wrap iframe {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      border: 0;
+      background: #050806;
+    }
+    .viewer-empty {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      padding: 25px;
+      background: radial-gradient(ellipse, #1b291d, #090e0b 70%);
+      z-index: 2;
+    }
+    .empty-inner { max-width: 330px; }
+    .empty-icon { font-size: 44px; opacity: .86; }
+    .empty-title { font-size: 17px; font-weight: 800; margin: 12px 0 6px; }
+    .empty-copy { font-size: 12px; line-height: 1.6; color: var(--muted); }
+    .camera-tags { display: flex; gap: 7px; align-items: center; }
+    .tag {
+      font-size: 10px;
+      border: 1px solid #34483a;
+      border-radius: 99px;
+      color: #a8c8a9;
+      padding: 3px 8px;
+      letter-spacing: .05em;
+      font-weight: 700;
+    }
+    .tag.online { background: #162a1c; border-color: #49724d; color: var(--green2); }
+    .tag.active { background: #352514; border-color: #8c5b24; color: var(--amber); }
+
+    /* GAME OVERLAY */
+    .game-overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 10;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      user-select: none;
+      padding: 12px;
+    }
+    .game-overlay.play-active {
+      pointer-events: auto;
+      cursor: crosshair;
+    }
+
+    /* HUD Top Bar */
+    .hud-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      pointer-events: auto;
+    }
+    .hud-pill {
+      background: #0c140fe0;
+      backdrop-filter: blur(8px);
+      border: 1px solid #283a2d;
+      border-radius: 99px;
+      padding: 5px 12px;
+      font-size: 11px;
+      color: #d1ded3;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 4px 16px #00000060;
+    }
+    .hud-pill b { color: var(--green2); }
+    .hud-hearts, .hud-hunger { display: flex; align-items: center; gap: 3px; font-weight: 700; }
+    .hud-hearts { color: #ff6e6e; }
+    .hud-hunger { color: #f5a742; }
+
+    /* Center Crosshair */
+    .crosshair {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 22px;
+      height: 22px;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity .2s ease;
+    }
+    .crosshair::before, .crosshair::after {
+      content: "";
+      position: absolute;
+      background: #ffffffdd;
+      box-shadow: 0 0 2px #000;
+    }
+    .crosshair::before { top: 0; bottom: 0; left: 10px; width: 2px; }
+    .crosshair::after { left: 0; right: 0; top: 10px; height: 2px; }
+    .game-overlay.play-active .crosshair { opacity: 0.9; }
+
+    /* Click-to-Play Prompt Banner */
+    .play-banner {
+      position: absolute;
+      top: 56px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #101c13ee;
+      border: 1px solid #3d5e42;
+      border-radius: 99px;
+      padding: 6px 14px;
+      font-size: 11px;
+      color: #bce8bf;
+      backdrop-filter: blur(8px);
+      box-shadow: 0 6px 20px #00000070;
+      pointer-events: auto;
+      transition: .2s;
+      cursor: pointer;
+    }
+    .play-banner:hover { background: #182e1d; border-color: var(--green); }
+    .game-overlay.locked .play-banner { opacity: 0; pointer-events: none; }
+
+    /* HUD Bottom Controls & Hotbar */
+    .hud-bottom {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      pointer-events: auto;
+    }
+    .quick-actions-bar {
+      display: flex;
+      gap: 6px;
+      background: #0a110ce0;
+      border: 1px solid #283a2d;
+      border-radius: 12px;
+      padding: 5px 8px;
+      backdrop-filter: blur(8px);
+      box-shadow: 0 6px 20px #00000060;
+    }
+    .quick-actions-bar button {
+      padding: 6px 10px;
+      font-size: 11px;
+      border-radius: 7px;
+      background: #16241a;
+      border: 1px solid #2d4533;
+    }
+    .quick-actions-bar button:hover { background: #223a28; border-color: var(--green); }
+    .quick-actions-bar button.active { background: #4f7b4c; border-color: #90d17a; color: #fff; }
+
+    /* Minecraft Hotbar */
+    .hotbar-container {
+      display: flex;
+      gap: 4px;
+      background: #000000cc;
+      border: 2px solid #3c4c3e;
+      border-radius: 9px;
+      padding: 4px;
+      box-shadow: 0 8px 24px #00000088;
+    }
+    .hotbar-slot {
+      width: 44px;
+      height: 44px;
+      background: #1a221c;
+      border: 2px solid #2f3c30;
+      border-radius: 6px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      cursor: pointer;
+      transition: .12s;
+    }
+    .hotbar-slot:hover { border-color: #799a7b; background: #243026; }
+    .hotbar-slot.active {
+      border-color: #ffffff;
+      box-shadow: 0 0 0 2px var(--green), inset 0 0 6px #80d46e88;
+      background: #2b3d2e;
+    }
+    .slot-num {
+      position: absolute;
+      top: 2px;
+      left: 3px;
+      font-size: 8px;
+      font-weight: 800;
+      color: #8b9d8e;
+    }
+    .slot-item {
+      font-size: 9px;
+      color: #e2ede3;
+      text-align: center;
+      line-height: 1.1;
+      max-width: 38px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-weight: 600;
+    }
+    .slot-count {
+      position: absolute;
+      bottom: 2px;
+      right: 3px;
+      font-size: 9px;
+      font-weight: 800;
+      color: var(--green2);
+    }
+
+    /* Controls Panel */
+    .controls-card .card-body { padding: 13px; }
+    .control-layout { display: grid; grid-template-columns: 145px 1fr; gap: 16px; align-items: center; }
+    .dpad {
+      display: grid;
+      grid-template-columns: repeat(3, 42px);
+      grid-template-rows: repeat(3, 39px);
+      gap: 4px;
+      justify-content: center;
+    }
+    .dpad button { padding: 0; font-size: 15px; border-radius: 9px; }
+    .dpad .blank { visibility: hidden; }
+    .control-stack { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .control-stack button { font-size: 11px; padding: 9px 6px; }
+    .hold-control.active { background: #4f7b4c; border-color: #90d17a; color: #fff; }
+    .hint { margin-top: 10px; font-size: 10px; color: var(--muted); text-align: center; line-height: 1.4; }
+    .advanced { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .mini-form { border: 1px solid #28382d; border-radius: 11px; padding: 10px; background: #101711; }
+    .mini-form h4 { font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: #a7b6aa; margin: 0 0 8px; }
+    .coords { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
+    .mini-form input {
+      width: 100%;
+      min-width: 0;
+      background: #0a100c;
+      border: 1px solid #2b3930;
+      color: var(--text);
+      padding: 7px 6px;
+      border-radius: 7px;
+      font-size: 11px;
+      outline: none;
+    }
+    .mini-form .wide-input { margin-top: 6px; }
+    .mini-form button { width: 100%; margin-top: 7px; padding: 8px; font-size: 11px; }
+    .result-box {
+      margin-top: 9px;
+      background: #0b110d;
+      border: 1px solid #25352a;
+      border-radius: 9px;
+      padding: 9px;
+      font-size: 10px;
+      color: #bac8bd;
+      max-height: 130px;
+      overflow: auto;
+      white-space: pre-wrap;
+      display: none;
+    }
+
+    /* Chat Card */
+    .chat-card {
+      height: calc(min(62vh, 680px) + 50px);
+      min-height: 470px;
+      display: flex;
+      flex-direction: column;
+    }
+    .chat-feed { padding: 12px; overflow: auto; display: flex; flex-direction: column; gap: 9px; flex: 1; min-height: 0; }
+    .chat-empty { color: var(--muted); font-size: 11px; line-height: 1.5; text-align: center; margin: auto; padding: 25px; }
+    .message {
+      border: 1px solid #293a2e;
+      background: #101711;
+      border-radius: 11px;
+      padding: 8px 10px;
+      max-width: 94%;
+      align-self: flex-start;
+    }
+    .message.out { align-self: flex-end; border-color: #426644; background: #1b2d1d; }
+    .message.op { border-color: #725626; background: #261c10; }
+    .message-meta { font-size: 9px; color: var(--muted); display: flex; justify-content: space-between; gap: 16px; margin-bottom: 4px; }
+    .message-text { font-size: 12px; line-height: 1.45; word-break: break-word; }
+    .chat-compose { padding: 11px; border-top: 1px solid #ffffff0b; display: flex; gap: 7px; }
+    .chat-compose input {
+      flex: 1;
+      min-width: 0;
+      border-radius: 9px;
+      padding: 10px;
+      background: #0d130f;
+      border: 1px solid #2a382e;
+      color: var(--text);
+      outline: none;
+    }
+    .chat-compose button { padding: 8px 12px; }
+    .chat-caption { font-size: 9px; color: var(--muted); padding: 0 12px 10px; display: flex; justify-content: space-between; }
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      bottom: 18px;
+      left: 50%;
+      transform: translate(-50%, 15px);
+      opacity: 0;
+      pointer-events: none;
+      background: #1c2a20;
+      border: 1px solid #48684a;
+      color: var(--text);
+      border-radius: 10px;
+      padding: 10px 16px;
+      font-size: 12px;
+      box-shadow: var(--shadow);
+      transition: .2s;
+      z-index: 100;
+    }
+    .toast.show { opacity: 1; transform: translate(-50%, 0); }
+    .toast.error { background: #391f1d; border-color: #7b413b; }
+    .footer { font-size: 10px; color: #6f7d72; text-align: center; padding: 8px 0 24px; }
+    .kbd { padding: 2px 5px; border: 1px solid #3a4b3e; border-radius: 5px; background: #151e17; color: #bcd1bf; font-size: 9px; }
+
+    @media(max-width: 1250px) {
+      .layout { grid-template-columns: 280px minmax(420px, 1fr); }
+      .right-column { grid-column: 1/-1; grid-row: 2; display: grid; grid-template-columns: 1fr 1fr; align-items: start; }
+      .chat-card { height: 440px; min-height: 440px; }
+      .viewer-wrap { height: 52vh; min-height: 380px; }
+    }
+    @media(max-width: 780px) {
+      .topbar { padding: 0 14px; }
+      .layout { display: flex; flex-direction: column; padding: 12px; }
+      .stack, .left-column, .center-column, .right-column { width: 100%; }
+      .right-column { display: flex; flex-direction: column; }
+      .viewer-wrap { height: 48vh; min-height: 320px; }
+      .chat-card { height: 420px; min-height: 420px; }
+      .local-pill { display: none; }
+      .control-layout { grid-template-columns: 140px 1fr; }
+      .advanced { grid-template-columns: 1fr 1fr; }
+      .hotbar-slot { width: 36px; height: 36px; }
+    }
+    @media(max-width: 440px) {
+      .advanced { grid-template-columns: 1fr; }
+      .control-layout { grid-template-columns: 125px 1fr; }
+      .dpad { grid-template-columns: repeat(3, 36px); grid-template-rows: repeat(3, 36px); }
+      .form-grid { grid-template-columns: 1fr 78px; }
+      .quick-actions-bar { flex-wrap: wrap; justify-content: center; }
+      .hotbar-container { gap: 2px; }
+      .hotbar-slot { width: 32px; height: 32px; }
+    }
+
+    /* Auth Lock Panel */
+    .auth-backdrop {
+      position: fixed;
+      inset: 0;
+      background: radial-gradient(ellipse at center, #1b3020 0%, #090e0b 80%);
+      z-index: 9999;
+      display: grid;
+      place-items: center;
+      padding: 16px;
+      backdrop-filter: blur(24px);
+    }
+    .auth-card {
+      background: linear-gradient(160deg, #18251d, #101813);
+      border: 1px solid #3d5843;
+      border-radius: 20px;
+      padding: 32px 28px;
+      max-width: 400px;
+      width: 100%;
+      text-align: center;
+      box-shadow: 0 24px 70px #000000bb;
+    }
+    .auth-icon {
+      font-size: 46px;
+      margin-bottom: 12px;
+      display: inline-block;
+      filter: drop-shadow(0 4px 16px rgba(128, 212, 110, 0.4));
+    }
+    .auth-title { font-size: 20px; font-weight: 800; letter-spacing: .01em; color: #fff; }
+    .auth-sub { font-size: 12px; color: var(--muted); margin: 6px 0 20px; line-height: 1.4; }
+    .auth-error-box {
+      margin-top: 10px;
+      padding: 9px;
+      background: #3d1c1a;
+      border: 1px solid #753330;
+      border-radius: 8px;
+      color: #ff9d96;
+      font-size: 11px;
+    }
+    .auth-hint {
+      margin-top: 20px;
+      font-size: 11px;
+      color: #8da092;
+      line-height: 1.5;
+      border-top: 1px solid #ffffff0f;
+      padding-top: 14px;
+    }
+    .auth-hint code {
+      background: #1e2e22;
+      border: 1px solid #38523c;
+      padding: 2px 5px;
+      border-radius: 5px;
+      color: var(--green2);
+    }
+  </style>
+</head>
+<body>
+  <!-- PASSWORD LOCK SCREEN (Render & Public Access Protection) -->
+  <div id="authPanel" class="auth-backdrop">
+    <div class="auth-card">
+      <div class="auth-icon">🔒</div>
+      <div class="auth-title">Minecraft AI Buddy</div>
+      <div class="auth-sub">Enter Access Password to Unlock Controls</div>
+
+      <form id="authForm" class="auth-form">
+        <div class="field wide" style="text-align:left;">
+          <label for="authPasswordInput">Dashboard Security Password</label>
+          <input id="authPasswordInput" type="password" placeholder="Enter password (default: buddy123)" autocomplete="current-password" autofocus>
+        </div>
+        <button type="submit" id="authLoginBtn" class="primary full" style="margin-top:14px; padding:12px; font-size:13px;">🔑 Unlock Dashboard</button>
+        <div id="authErrorMsg" class="auth-error-box" style="display:none"></div>
+      </form>
+
+      <div class="auth-hint">
+        💡 Default Password: <code>buddy123</code><br>
+        Render me change karne ke liye <code>DASHBOARD_PASSWORD</code> environment variable add karein.
+      </div>
+    </div>
+  </div>
+
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-icon">⛏</div>
+      <div>
+        <div class="brand-name">Minecraft AI Buddy</div>
+        <div class="brand-sub">Live 3D POV · Autonomous Player & OP Room · Java Edition</div>
+      </div>
+    </div>
+    <div class="top-right">
+      <div class="local-pill">● CRACKED & ONLINE MODE COMPATIBLE</div>
+      <div class="status-pill" id="statusPill"><span class="dot"></span><span id="statusText">Checking server…</span></div>
+      <button id="lockDashboardBtn" class="ghost tiny" style="padding:6px 10px;" title="Lock Dashboard">🔒 Lock</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <!-- LEFT COLUMN: Server Setup, AI Provider (with Stacked Keys & Presets), Bot Status -->
+    <section class="stack left-column">
+      <!-- Server Setup Card -->
+      <article class="card">
+        <div class="card-head">
+          <div><div class="card-kicker">Connection</div><div class="card-title" style="margin-top:4px">Server setup</div></div>
+          <span class="tag">JAVA</span>
+        </div>
+        <div class="card-body">
+          <div class="form-grid">
+            <div class="field wide"><label for="host">Server IP / Domain</label><input id="host" placeholder="e.g. phantomhorizon549.mcsh.io" autocomplete="off"></div>
+            <div class="field"><label for="version">MC Version</label><input id="version" placeholder="auto"></div>
+            <div class="field"><label for="port">Port</label><input id="port" type="number" min="1" max="65535" value="25565"></div>
+            <div class="field"><label for="auth">Login Mode</label><select id="auth"><option value="offline">Offline / Cracked (LAN)</option><option value="microsoft">Microsoft</option></select></div>
+            <div class="field"><label for="username">Bot Username</label><input id="username" placeholder="AIBuddy" maxlength="80"></div>
+          </div>
+          <div class="button-row">
+            <button class="ghost" id="saveSettings">Save</button>
+            <button class="primary" id="connectButton">Connect bot</button>
+            <button class="danger" id="disconnectButton" disabled>Disconnect</button>
+          </div>
+          <div class="saved-note" id="savedNote">Auto-reconnects in 4s if disconnected.</div>
+        </div>
+      </article>
+
+      <!-- AI Provider Card (Stacked Keys & Presets) -->
+      <article class="card">
+        <div class="card-head">
+          <div><div class="card-kicker">AI Intelligence</div><div class="card-title" style="margin-top:4px">API Provider & Stacked Keys</div></div>
+          <span class="tag" id="aiStatus">NOT CONNECTED</span>
+        </div>
+        <div class="card-body">
+          <div class="form-grid">
+            <div class="field wide">
+              <label for="aiProvider">Select Provider / Preset</label>
+              <select id="aiProvider">
+                <option value="openrouter">OpenRouter (Recommended - DeepSeek, Claude, Free Gemini)</option>
+                <option value="groq">Groq (Ultra-Fast Llama 3.3)</option>
+                <option value="gemini">Google Gemini (OpenAI Format)</option>
+                <option value="openai">OpenAI (GPT-4o Mini)</option>
+                <option value="ollama">Ollama (Local / Free)</option>
+                <option value="custom">Custom OpenAI-Compatible Provider</option>
+              </select>
+            </div>
+            <div class="field wide">
+              <label for="aiBaseUrl">API Base URL</label>
+              <input id="aiBaseUrl" value="https://openrouter.ai/api/v1" placeholder="https://openrouter.ai/api/v1" autocomplete="url">
+            </div>
+            <div class="field wide">
+              <label for="aiModelSelect">Select Model</label>
+              <select id="aiModelSelect"></select>
+            </div>
+            <div class="field wide" id="customModelField" style="display:none">
+              <label for="aiModel">Custom Model ID</label>
+              <input id="aiModel" value="deepseek/deepseek-chat" placeholder="model name" autocomplete="off">
+            </div>
+            <div class="field wide">
+              <label for="aiApiKey">
+                <span>Stacked API Keys <span class="muted">(Auto-Failover)</span></span>
+                <span class="tiny muted" id="keyStackCount">0 keys loaded</span>
+              </label>
+              <textarea id="aiApiKey" rows="3" placeholder="Paste OpenRouter or Provider API keys here.&#10;Aap ek saath 4-5 keys daal sakte hain (newline ya comma separated).&#10;Rate limit ya quota hit hone par agli key pe auto-switch ho jayega!"></textarea>
+            </div>
+          </div>
+          <div class="button-row">
+            <button class="primary" id="connectAIButton">Test & Connect AI</button>
+            <button class="ghost" id="disconnectAIButton" disabled>Clear Keys</button>
+          </div>
+          <div class="section-label" style="margin-top:14px">Autonomous In-Game Behavior</div>
+          <label class="check-row">
+            <input type="checkbox" id="aiAutoReply" checked>
+            <span>Play as intelligent normal player + OP helper</span>
+          </label>
+          <div class="saved-note" id="aiNote" style="margin-top:8px">
+            OpenRouter choose karo aur sirf apni key daal do. Bot ek real player ki tarah khelega, chat karega aur OP commands execute karega!
+          </div>
+        </div>
+      </article>
+
+      <!-- Bot Vitals & Inventory -->
+      <article class="card">
+        <div class="card-head">
+          <div><div class="card-kicker">Status</div><div class="card-title" style="margin-top:4px">Bot vitals</div></div>
+          <button class="ghost tiny" id="refreshButton">↻ Refresh</button>
+        </div>
+        <div class="card-body">
+          <div class="vitals">
+            <div class="vital">
+              <div class="vital-label">Health</div>
+              <div class="vital-value"><span id="health">—</span><span class="muted tiny"> / 20</span></div>
+              <div class="bar"><i id="healthBar"></i></div>
+            </div>
+            <div class="vital">
+              <div class="vital-label">Food</div>
+              <div class="vital-value"><span id="food">—</span><span class="muted tiny"> / 20</span></div>
+              <div class="bar food"><i id="foodBar"></i></div>
+            </div>
+          </div>
+          <div class="position"><span>Position</span><span class="mono" id="position">X — · Y — · Z —</span></div>
+          <div class="section-label" style="margin-top:12px">Inventory</div>
+          <div class="inventory" id="inventory"><span class="muted tiny">Connect to see inventory items.</span></div>
+        </div>
+      </article>
+    </section>
+
+    <!-- CENTER COLUMN: Live First-Person POV, Interactive Game HUD & Manual Play -->
+    <section class="stack center-column">
+      <!-- Live 3D POV Card with Game Controls Overlay -->
+      <article class="card viewer-card">
+        <div class="card-head viewer-head">
+          <div>
+            <div class="card-kicker">Real-time Game View</div>
+            <div class="card-title" style="margin-top:2px">Bot First-Person POV (Browser Gameplay)</div>
+          </div>
+          <div class="camera-tags">
+            <button id="togglePlayModeBtn" class="primary" style="padding:4px 10px; font-size:11px;">🎮 PLAY AS BOT</button>
+            <span class="tag online" id="viewTag">FIRST PERSON</span>
+          </div>
+        </div>
+        <div class="viewer-wrap" id="viewerContainer">
+          <iframe id="viewer" title="Minecraft bot live point of view" allow="fullscreen pointer-lock" hidden></iframe>
+
+          <!-- Empty placeholder before bot connects -->
+          <div class="viewer-empty" id="viewerEmpty">
+            <div class="empty-inner">
+              <div class="empty-icon">🎮</div>
+              <div class="empty-title">Live POV Screen</div>
+              <div class="empty-copy">Bot server se connect hone par yahan uska live 3D first-person world dikhega. Aap browser se seedhe game khel payenge!</div>
+            </div>
+          </div>
+
+          <!-- INTERACTIVE GAME OVERLAY (Crosshair, HUD, Hotbar, Quick Controls) -->
+          <div class="game-overlay" id="gameOverlay">
+            <!-- HUD Top -->
+            <div class="hud-top">
+              <div class="hud-pill">
+                <span class="hud-hearts">❤️ <span id="hudHealth">20</span>/20</span>
+                <span class="hud-hunger">🍗 <span id="hudFood">20</span>/20</span>
+                <span class="mono" id="hudCoords">X: — Y: — Z: —</span>
+              </div>
+              <div class="hud-pill">
+                <span>Hand: <b id="hudHeldItem">Empty</b></span>
+                <button id="fsBtn" class="ghost tiny" style="padding:2px 6px;">⛶ Fullscreen</button>
+              </div>
+            </div>
+
+            <!-- Center Crosshair -->
+            <div class="crosshair" id="crosshair"></div>
+
+            <!-- Click to lock Banner -->
+            <div class="play-banner" id="playBanner">
+              🎮 <b>Play Mode Active:</b> Click screen to lock mouse & control bot (WASD + Mouse)
+            </div>
+
+            <!-- HUD Bottom: Quick Action buttons & 9-Slot Hotbar -->
+            <div class="hud-bottom">
+              <div class="quick-actions-bar">
+                <button id="btnAttack">⚔️ Attack / Mine</button>
+                <button id="btnUse">🛡️ Place / Use</button>
+                <button id="btnJump" class="hold-control" data-control="jump">⬆ Jump</button>
+                <button id="btnSneak" class="hold-control" data-control="sneak">⬇ Crouch</button>
+                <button id="btnSprint" class="hold-control" data-control="sprint">⚡ Sprint</button>
+                <button id="btnDrop">🎁 Drop Item (Q)</button>
+              </div>
+
+              <!-- 9 Hotbar Slots -->
+              <div class="hotbar-container" id="hotbarSlots">
+                <!-- Dynamically generated 9 slots -->
+              </div>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <!-- Manual D-Pad & Controls -->
+      <article class="card controls-card">
+        <div class="card-head">
+          <div><div class="card-kicker">Controls</div><div class="card-title" style="margin-top:4px">On-Screen Movement Controls</div></div>
+          <button class="danger" id="stopButton">■ Stop All</button>
+        </div>
+        <div class="card-body">
+          <div class="control-layout">
+            <div class="dpad">
+              <span class="blank"></span><button class="hold-control" data-control="forward" aria-label="Forward">▲</button><span class="blank"></span>
+              <button class="hold-control" data-control="left" aria-label="Left">◀</button><button class="hold-control" data-control="back" aria-label="Back">▼</button><button class="hold-control" data-control="right" aria-label="Right">▶</button>
+              <span class="blank"></span><span class="blank"></span><span class="blank"></span>
+            </div>
+            <div class="control-stack">
+              <button class="hold-control" data-control="jump">⤒ Jump (Space)</button>
+              <button class="hold-control" data-control="sprint">Sprint (Ctrl)</button>
+              <button class="hold-control" data-control="sneak">Sneak (Shift)</button>
+              <button id="useItemManual">Use Item / Eat</button>
+              <button id="lookLeft">↶ Turn Left</button>
+              <button id="lookRight">Turn Right ↷</button>
+            </div>
+          </div>
+          <div class="hint">
+            Direct Keyboard: <span class="kbd">W</span> <span class="kbd">A</span> <span class="kbd">S</span> <span class="kbd">D</span> to walk · <span class="kbd">Space</span> to jump · <span class="kbd">Shift</span> to sneak · <span class="kbd">Ctrl</span> to sprint · <span class="kbd">1-9</span> for hotbar slots · <span class="kbd">Q</span> to drop item
+          </div>
+        </div>
+      </article>
+
+      <!-- Advanced Quick Actions -->
+      <article class="card">
+        <div class="card-head">
+          <div><div class="card-kicker">World Actions</div><div class="card-title" style="margin-top:4px">Quick Actions & Commands</div></div>
+          <span class="muted tiny">Pathfinding · Digging · Building</span>
+        </div>
+        <div class="card-body">
+          <div class="advanced">
+            <div class="mini-form">
+              <h4>Walk to Coordinates</h4>
+              <div class="coords"><input id="gotoX" placeholder="X"><input id="gotoY" placeholder="Y"><input id="gotoZ" placeholder="Z"></div>
+              <button id="gotoButton">Walk There</button>
+            </div>
+            <div class="mini-form">
+              <h4>Follow Player</h4>
+              <input class="wide-input" id="followName" placeholder="Player name (e.g. indvishal69)">
+              <button id="followButton">Start Following</button>
+            </div>
+            <div class="mini-form">
+              <h4>Search Nearby Blocks</h4>
+              <input class="wide-input" id="blockQuery" placeholder="e.g. log, ore, stone">
+              <button id="searchButton">Search (16m)</button>
+            </div>
+            <div class="mini-form">
+              <h4>Inspect / Break Block</h4>
+              <div class="coords"><input id="blockX" placeholder="X"><input id="blockY" placeholder="Y"><input id="blockZ" placeholder="Z"></div>
+              <div class="button-row"><button id="inspectButton">Inspect</button><button class="danger" id="mineButton">Mine Block</button></div>
+            </div>
+          </div>
+          <pre class="result-box" id="resultBox"></pre>
+        </div>
+      </article>
+    </section>
+
+    <!-- RIGHT COLUMN: Live In-Game Chat & OP Console -->
+    <section class="stack right-column">
+      <article class="card chat-card">
+        <div class="card-head">
+          <div>
+            <div class="card-kicker">Live Chat & OP Commands</div>
+            <div class="card-title" style="margin-top:4px">Server Chat Feed</div>
+          </div>
+          <button class="ghost tiny" id="clearChat">Clear View</button>
+        </div>
+        <div class="chat-feed" id="chatFeed">
+          <div class="chat-empty">Bot connect hone par yahan server chat aur bot ke autonomous responses dikhenge.</div>
+        </div>
+        <div class="chat-caption">
+          <span>OP commands enabled: e.g. <span class="mono">/time set day</span>, <span class="mono">/weather clear</span></span>
+        </div>
+        <form class="chat-compose" id="chatForm">
+          <input id="chatInput" maxlength="240" placeholder="Chat message ya OP command bhejo (/time set day)…" autocomplete="off">
+          <button class="primary" type="submit">Send</button>
+        </form>
+      </article>
+
+      <article class="card">
+        <div class="card-body tiny muted" style="line-height:1.65">
+          <b style="color:#d5e5d7">OP Server Control:</b><br>
+          Aap in-game chat me bot ko bol sakte hain: <i>"AIBuddy din kar do"</i>, <i>"weather saaf karo"</i>, <i>"mere paas aao"</i>, <i>"lakdi todo"</i>.<br>
+          Agar bot ke pass OP permission hai, toh woh server ke saare commands smoothly handle karega!
+        </div>
+      </article>
+    </section>
+  </main>
+
+  <div class="footer">Minecraft AI Buddy · First-Person POV Gameplay · Multi-Key AI Failover · Java Edition 1.21+</div>
+  <div class="toast" id="toast"></div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const $ = (id) => document.getElementById(id);
+
+    function getAuthToken() {
+      return localStorage.getItem("buddy_auth_token") || "";
+    }
+    function setAuthToken(token) {
+      if (token) localStorage.setItem("buddy_auth_token", token);
+      else localStorage.removeItem("buddy_auth_token");
+    }
+
+    const socket = io({
+      auth: { token: getAuthToken() }
+    });
+
+    let latestState = null;
+    let lastChatRender = "";
+    let clearedAt = 0;
+    let toastTimer = null;
+    let currentLook = { yaw: 0, pitch: 0 };
+    const held = new Map();
+    let isPlayMode = true;
+    let isPointerLocked = false;
+    let presetsData = {};
+    let lookThrottleTimer = null;
+
+    function notify(message, isError = false) {
+      const toast = $("toast");
+      toast.textContent = message;
+      toast.classList.toggle("error", isError);
+      toast.classList.add("show");
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toast.classList.remove("show"), 2800);
+    }
+
+    function showAuthPanel(show) {
+      const panel = $("authPanel");
+      if (panel) panel.style.display = show ? "grid" : "none";
+      if (show) {
+        setTimeout(() => $("authPasswordInput")?.focus(), 80);
+      }
+    }
+
+    async function checkAuth() {
+      const token = getAuthToken();
+      if (!token) {
+        showAuthPanel(true);
+        return false;
+      }
+      try {
+        const res = await fetch("/api/auth/check", { headers: { "x-auth-token": token } });
+        const data = await res.json().catch(() => ({}));
+        if (data.authenticated) {
+          showAuthPanel(false);
+          return true;
+        }
+      } catch {}
+      showAuthPanel(true);
+      return false;
+    }
+
+    async function post(url, body = {}) {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-auth-token": getAuthToken()
+        },
+        body: JSON.stringify(body)
+      });
+      if (response.status === 401) {
+        showAuthPanel(true);
+        throw new Error("Password required! Please unlock dashboard.");
+      }
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || `Request failed (${response.status})`);
+      return payload;
+    }
+
+    async function tool(name, args = {}) {
+      const out = await post(`/api/tool/${name}`, args);
+      showResult(out.result);
+      return out.result;
+    }
+
+    function showResult(value) {
+      const box = $("resultBox");
+      box.style.display = "block";
+      box.textContent = typeof value === "string" ? value : JSON.stringify(value, null, 2);
+    }
+
+    function safeNumber(id) {
+      const raw = $(id).value.trim();
+      if (!raw) throw new Error(`Enter a value for ${id}.`);
+      const value = Number(raw);
+      if (!Number.isFinite(value)) throw new Error(`Enter a valid value for ${id}.`);
+      return value;
+    }
+
+    function setField(id, value) {
+      if (document.activeElement !== $(id)) $(id).value = value ?? "";
+    }
+
+    /* RENDER HOTBAR (9 SLOTS) */
+    function renderHotbar(hotbar = [], activeSlot = 0) {
+      const container = $("hotbarSlots");
+      container.replaceChildren();
+      for (let i = 0; i < 9; i++) {
+        const item = hotbar[i] || { name: null, count: 0 };
+        const slotEl = document.createElement("div");
+        slotEl.className = `hotbar-slot ${i === activeSlot ? "active" : ""}`;
+        slotEl.title = item.name ? `${item.name} (${item.count})` : `Slot ${i + 1} (Empty)`;
+        
+        const num = document.createElement("span");
+        num.className = "slot-num";
+        num.textContent = i + 1;
+        slotEl.appendChild(num);
+
+        if (item.name) {
+          const nameSpan = document.createElement("span");
+          nameSpan.className = "slot-item";
+          nameSpan.textContent = item.name.replace(/_/g, " ");
+          slotEl.appendChild(nameSpan);
+
+          if (item.count > 1) {
+            const countSpan = document.createElement("span");
+            countSpan.className = "slot-count";
+            countSpan.textContent = item.count;
+            slotEl.appendChild(countSpan);
+          }
+        }
+
+        slotEl.addEventListener("click", () => {
+          selectHotbarSlot(i);
+        });
+
+        container.appendChild(slotEl);
+      }
+    }
+
+    function selectHotbarSlot(slot) {
+      socket.emit("bot-slot", { slot });
+      document.querySelectorAll(".hotbar-slot").forEach((s, idx) => s.classList.toggle("active", idx === slot));
+    }
+
+    /* RENDER CHAT */
+    function renderChat(messages = []) {
+      messages = messages.filter((item) => !item.at || new Date(item.at).getTime() > clearedAt);
+      const signature = JSON.stringify(messages.slice(-40));
+      if (signature === lastChatRender) return;
+      lastChatRender = signature;
+      const feed = $("chatFeed");
+      const nearBottom = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 70;
+      feed.replaceChildren();
+      if (!messages.length) {
+        const empty = document.createElement("div");
+        empty.className = "chat-empty";
+        empty.textContent = "Abhi koi message nahi. Server connect hone par live chat yahan dikhegi.";
+        feed.append(empty);
+        return;
+      }
+      for (const item of messages.slice(-40)) {
+        const bubble = document.createElement("div");
+        const isOpCmd = item.message && item.message.startsWith("/");
+        bubble.className = `message ${item.direction === "out" ? "out" : "in"} ${isOpCmd ? "op" : ""}`;
+        const meta = document.createElement("div");
+        meta.className = "message-meta";
+        const who = document.createElement("span");
+        who.textContent = item.direction === "out" ? `${item.username || "Bot"} · you` : item.username || "Server";
+        const time = document.createElement("span");
+        time.textContent = item.at ? new Date(item.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
+        const text = document.createElement("div");
+        text.className = "message-text";
+        text.textContent = item.message || "";
+        meta.append(who, time);
+        bubble.append(meta, text);
+        feed.append(bubble);
+      }
+      if (nearBottom) feed.scrollTop = feed.scrollHeight;
+    }
+
+    /* RENDER DASHBOARD STATE */
+    function render(state) {
+      latestState = state;
+      const bot = state.bot || {};
+      const connected = bot.state === "connected";
+      const pill = $("statusPill");
+      pill.classList.toggle("online", connected);
+      pill.classList.toggle("connecting", bot.state === "connecting");
+      const names = { connected: `Online · ${bot.username || "Bot"}`, connecting: "Connecting…", error: "Connection error", disconnected: "Disconnected" };
+      $("statusText").textContent = names[bot.state] || "Waiting for server";
+
+      const hp = Number.isFinite(bot.health) ? Math.round(bot.health) : "—";
+      const fd = Number.isFinite(bot.food) ? Math.round(bot.food) : "—";
+      $("health").textContent = hp;
+      $("food").textContent = fd;
+      $("hudHealth").textContent = hp;
+      $("hudFood").textContent = fd;
+      $("healthBar").style.width = `${Math.max(0, Math.min(100, (Number(bot.health) || 0) * 5))}%`;
+      $("foodBar").style.width = `${Math.max(0, Math.min(100, (Number(bot.food) || 0) * 5))}%`;
+
+      const p = bot.position;
+      const posStr = p ? `X ${p.x} · Y ${p.y} · Z ${p.z}` : "X — · Y — · Z —";
+      $("position").textContent = posStr;
+      $("hudCoords").textContent = p ? `X:${p.x} Y:${p.y} Z:${p.z}` : "X: — Y: — Z: —";
+      $("hudHeldItem").textContent = bot.heldItem ? bot.heldItem.replace(/_/g, " ") : "Empty";
+
+      if (bot.yaw != null) currentLook.yaw = bot.yaw;
+      if (bot.pitch != null) currentLook.pitch = bot.pitch;
+
+      const inv = $("inventory");
+      inv.replaceChildren();
+      if (bot.inventory?.length) {
+        for (const item of bot.inventory) {
+          const chip = document.createElement("span");
+          chip.className = "item-chip";
+          chip.append(document.createTextNode(item.name.replace(/_/g, " ")));
+          const count = document.createElement("b");
+          count.textContent = item.count;
+          chip.append(count);
+          inv.append(chip);
+        }
+      } else {
+        const empty = document.createElement("span");
+        empty.className = "muted tiny";
+        empty.textContent = connected ? "Inventory empty." : "Connect to see inventory items.";
+        inv.append(empty);
+      }
+
+      // Hotbar
+      renderHotbar(bot.hotbar || [], bot.activeSlot ?? 0);
+
+      // Server Settings
+      if (state.settings) {
+        setField("host", state.settings.host);
+        setField("port", state.settings.port);
+        setField("version", state.settings.version);
+        setField("auth", state.settings.auth);
+        setField("username", state.settings.username);
+      }
+
+      // AI Settings & Presets
+      if (state.ai) {
+        const ai = state.ai;
+        if (ai.presets) {
+          presetsData = ai.presets;
+          updateProviderPresetsUI(ai.provider || "openrouter", ai.model);
+        }
+        setField("aiBaseUrl", ai.baseUrl);
+        setField("aiModel", ai.model);
+        if (document.activeElement !== $("aiAutoReply")) $("aiAutoReply").checked = Boolean(ai.autoReply);
+
+        const keysCount = ai.keysCount || 0;
+        $("keyStackCount").textContent = keysCount > 1 
+          ? `Stack: ${keysCount} keys loaded (Active: #${(ai.activeKeyIndex || 0) + 1})`
+          : keysCount === 1 ? `1 key loaded` : `0 keys loaded`;
+
+        $("aiStatus").textContent = ai.connected 
+          ? `CONNECTED · ${keysCount > 1 ? `STACK (${keysCount})` : ai.model}` 
+          : "NOT CONNECTED";
+        $("aiStatus").classList.toggle("online", ai.connected);
+        $("disconnectAIButton").disabled = !ai.connected;
+
+        if (ai.lastError) $("aiNote").textContent = ai.lastError;
+        else if (ai.connected) {
+          $("aiNote").textContent = `AI active! ${keysCount > 1 ? `Auto-failover enabled across ${keysCount} stacked keys.` : ""}`;
+        }
+      }
+
+      $("connectButton").textContent = connected ? "Connected" : bot.state === "connecting" ? "Connecting…" : "Connect bot";
+      $("connectButton").disabled = connected || bot.state === "connecting";
+      $("disconnectButton").disabled = !connected;
+
+      // 3D Viewer Frame
+      $("viewerEmpty").hidden = Boolean(connected && state.viewerAvailable);
+      const frame = $("viewer");
+      frame.hidden = !(connected && state.viewerAvailable);
+      const url = state.viewerUrl || "";
+      if (connected && state.viewerAvailable && frame.dataset.src !== url) {
+        frame.src = url;
+        frame.dataset.src = url;
+      }
+
+      renderChat(state.chat || []);
+    }
+
+    /* UPDATE PROVIDER & MODELS PRESETS UI */
+    function updateProviderPresetsUI(currentProvider, currentModel) {
+      const provSelect = $("aiProvider");
+      if (document.activeElement !== provSelect) provSelect.value = currentProvider;
+
+      const modelSelect = $("aiModelSelect");
+      const providerInfo = presetsData[currentProvider];
+      if (!providerInfo) return;
+
+      const models = providerInfo.models || [];
+      modelSelect.replaceChildren();
+
+      let modelFound = false;
+      for (const m of models) {
+        const opt = document.createElement("option");
+        opt.value = m.id;
+        opt.textContent = m.name || m.id;
+        if (m.id === currentModel) {
+          opt.selected = true;
+          modelFound = true;
+        }
+        modelSelect.appendChild(opt);
+      }
+
+      const customOpt = document.createElement("option");
+      customOpt.value = "__custom__";
+      customOpt.textContent = "Custom Model…";
+      if (!modelFound && currentModel) customOpt.selected = true;
+      modelSelect.appendChild(customOpt);
+
+      $("customModelField").style.display = (!modelFound && currentModel) || modelSelect.value === "__custom__" ? "grid" : "none";
+    }
+
+    $("aiProvider").addEventListener("change", (e) => {
+      const p = e.target.value;
+      const info = presetsData[p];
+      if (info) {
+        $("aiBaseUrl").value = info.baseUrl;
+        updateProviderPresetsUI(p, info.models[0]?.id || "");
+        $("aiModel").value = info.models[0]?.id || "";
+      }
+    });
+
+    $("aiModelSelect").addEventListener("change", (e) => {
+      if (e.target.value === "__custom__") {
+        $("customModelField").style.display = "grid";
+      } else {
+        $("customModelField").style.display = "none";
+        $("aiModel").value = e.target.value;
+      }
+    });
+
+    /* SAVE SETTINGS */
+    async function saveSettings() {
+      const settings = {
+        host: $("host").value.trim(),
+        port: safeNumber("port"),
+        version: $("version").value.trim() || "auto",
+        auth: $("auth").value,
+        username: $("username").value.trim() || "AIBuddy"
+      };
+      const out = await post("/api/settings", settings);
+      $("savedNote").textContent = "Saved on this PC. Applies to current/next connection.";
+      notify("Server settings saved");
+      return out.settings;
+    }
+
+    function aiOptions() {
+      const provider = $("aiProvider").value;
+      const model = $("aiModelSelect").value === "__custom__" ? $("aiModel").value.trim() : $("aiModelSelect").value;
+      return {
+        provider,
+        baseUrl: $("aiBaseUrl").value.trim(),
+        model,
+        trigger: "@buddy",
+        autoReply: $("aiAutoReply").checked
+      };
+    }
+
+    async function saveAIOptions() {
+      const out = await post("/api/ai/settings", aiOptions());
+      notify("AI settings saved");
+    }
+
+    async function guarded(task) {
+      try { await task(); } catch (error) { notify(error.message || String(error), true); }
+    }
+
+    function fetchState() {
+      fetch("/api/state", { headers: { "x-auth-token": getAuthToken() } })
+        .then((r) => r.json())
+        .then(render)
+        .catch(() => {});
+    }
+
+    /* AUTH EVENT LISTENERS */
+    $("authForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const pwd = $("authPasswordInput").value.trim();
+      const errBox = $("authErrorMsg");
+      errBox.style.display = "none";
+      const btn = $("authLoginBtn");
+      btn.disabled = true;
+      btn.textContent = "Verifying…";
+      try {
+        const res = await fetch("/api/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ password: pwd })
+        });
+        const data = await res.json();
+        if (!res.ok || !data.ok) throw new Error(data.error || "Password galat hai!");
+
+        setAuthToken(data.token);
+        showAuthPanel(false);
+        $("authPasswordInput").value = "";
+        notify("Dashboard Unlocked! Welcome.");
+        socket.emit("authenticate", { token: data.token });
+        fetchState();
+      } catch (err) {
+        errBox.textContent = err.message;
+        errBox.style.display = "block";
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "🔑 Unlock Dashboard";
+      }
+    });
+
+    $("lockDashboardBtn").addEventListener("click", async () => {
+      await fetch("/api/auth/logout", {
+        method: "POST",
+        headers: { "x-auth-token": getAuthToken() }
+      }).catch(() => {});
+      setAuthToken("");
+      showAuthPanel(true);
+      notify("Dashboard locked.");
+    });
+
+    /* SOCKET.IO LISTENERS */
+    socket.on("state", render);
+    socket.on("game-chat", (message) => {
+      if (latestState) {
+        latestState.chat = [...(latestState.chat || []), message].slice(-40);
+        renderChat(latestState.chat);
+      }
+    });
+
+    // Check auth on startup, then load state
+    checkAuth().then(fetchState);
+
+    /* BUTTONS */
+    $("saveSettings").addEventListener("click", () => guarded(saveSettings));
+    $("connectButton").addEventListener("click", () => guarded(async () => {
+      await saveSettings();
+      await tool("minecraft_connect");
+      notify("Bot joining server…");
+    }));
+    $("disconnectButton").addEventListener("click", () => guarded(async () => {
+      await releaseAll();
+      await tool("minecraft_disconnect");
+      notify("Bot disconnected");
+    }));
+    $("refreshButton").addEventListener("click", () => guarded(async () => {
+      const s = await tool("minecraft_status");
+      showResult(s);
+    }));
+    $("stopButton").addEventListener("click", () => guarded(async () => {
+      await releaseAll();
+      await tool("minecraft_stop");
+      notify("Bot stopped");
+    }));
+
+    /* AI CONNECT BUTTON WITH STACKED KEYS */
+    $("connectAIButton").addEventListener("click", () => guarded(async () => {
+      const button = $("connectAIButton");
+      button.disabled = true;
+      button.textContent = "Connecting…";
+      try {
+        const rawKeys = $("aiApiKey").value.trim();
+        await post("/api/ai/connect", {
+          ...aiOptions(),
+          apiKeys: rawKeys,
+          apiKey: rawKeys
+        });
+        $("aiApiKey").value = "";
+        notify("AI Provider connected! Keys ready in stack.");
+      } finally {
+        button.disabled = false;
+        button.textContent = "Test & Connect AI";
+      }
+    }));
+
+    $("disconnectAIButton").addEventListener("click", () => guarded(async () => {
+      await post("/api/ai/disconnect");
+      notify("AI keys cleared from memory.");
+    }));
+
+    $("aiAutoReply").addEventListener("change", () => guarded(saveAIOptions));
+
+    /* CHAT & OP COMMANDS */
+    $("clearChat").addEventListener("click", () => {
+      clearedAt = Date.now();
+      lastChatRender = "";
+      renderChat([]);
+    });
+
+    $("chatForm").addEventListener("submit", (e) => guarded(async () => {
+      e.preventDefault();
+      const message = $("chatInput").value.trim();
+      if (!message) return;
+      await tool("minecraft_chat", { message });
+      $("chatInput").value = "";
+    }));
+
+    /* ADVANCED ACTIONS */
+    $("gotoButton").addEventListener("click", () => guarded(() => tool("minecraft_move_to", { x: safeNumber("gotoX"), y: safeNumber("gotoY"), z: safeNumber("gotoZ") })));
+    $("followButton").addEventListener("click", () => guarded(() => tool("minecraft_follow_player", { player_name: $("followName").value.trim() })));
+    $("searchButton").addEventListener("click", () => guarded(() => tool("minecraft_search_blocks", { name_contains: $("blockQuery").value.trim(), radius: 20, limit: 15 })));
+    $("inspectButton").addEventListener("click", () => guarded(() => tool("minecraft_inspect_block", { x: safeNumber("blockX"), y: safeNumber("blockY"), z: safeNumber("blockZ") })));
+    $("mineButton").addEventListener("click", () => guarded(() => tool("minecraft_mine_block", { x: safeNumber("blockX"), y: safeNumber("blockY"), z: safeNumber("blockZ") })));
+    $("lookLeft").addEventListener("click", () => nudgeLook(-0.35, 0));
+    $("lookRight").addEventListener("click", () => nudgeLook(0.35, 0));
+    $("useItemManual").addEventListener("click", () => guarded(() => tool("minecraft_use_item", {})));
+
+    /* DIRECT BROWSER GAMEPLAY ENGINE */
+    const overlay = $("gameOverlay");
+    const container = $("viewerContainer");
+
+    $("togglePlayModeBtn").addEventListener("click", () => {
+      isPlayMode = !isPlayMode;
+      $("togglePlayModeBtn").textContent = isPlayMode ? "🎮 PLAY AS BOT" : "👁️ SPECTATE";
+      $("togglePlayModeBtn").className = isPlayMode ? "primary" : "ghost";
+      overlay.classList.toggle("play-active", isPlayMode);
+      notify(isPlayMode ? "Play Mode ON: Click screen to control bot" : "Spectate Mode ON");
+    });
+    overlay.classList.toggle("play-active", isPlayMode);
+
+    // Fullscreen toggle
+    $("fsBtn").addEventListener("click", () => {
+      if (!document.fullscreenElement) {
+        container.requestFullscreen?.().catch(() => {});
+      } else {
+        document.exitFullscreen?.().catch(() => {});
+      }
+    });
+
+    // Pointer Lock & Mouse Look
+    overlay.addEventListener("click", (e) => {
+      if (!isPlayMode) return;
+      if (e.target.closest("button") || e.target.closest(".hotbar-slot") || e.target.closest(".play-banner") === false) return;
+      if (document.pointerLockElement !== overlay) {
+        overlay.requestPointerLock?.();
+      }
+    });
+
+    document.addEventListener("pointerlockchange", () => {
+      isPointerLocked = document.pointerLockElement === overlay;
+      overlay.classList.toggle("locked", isPointerLocked);
+      if (isPointerLocked) {
+        notify("Controls Active: Use WASD + Mouse. Press ESC to release.");
+      }
+    });
+
+    // Mouse Move Look
+    document.addEventListener("mousemove", (e) => {
+      if (!isPlayMode || !isPointerLocked) return;
+      const sensitivity = 0.0032;
+      currentLook.yaw -= e.movementX * sensitivity;
+      currentLook.pitch = Math.max(-1.45, Math.min(1.45, currentLook.pitch - e.movementY * sensitivity));
+
+      if (!lookThrottleTimer) {
+        lookThrottleTimer = setTimeout(() => {
+          lookThrottleTimer = null;
+          socket.emit("bot-look", currentLook);
+        }, 35);
+      }
+    });
+
+    function nudgeLook(yawDelta, pitchDelta) {
+      currentLook.yaw += yawDelta;
+      currentLook.pitch = Math.max(-1.45, Math.min(1.45, currentLook.pitch + pitchDelta));
+      socket.emit("bot-look", currentLook);
+    }
+
+    // Left Click: Attack / Mine & Right Click: Place / Use
+    overlay.addEventListener("mousedown", (e) => {
+      if (!isPlayMode || !isPointerLocked) return;
+      if (e.button === 0) {
+        // Left Click -> Attack / Dig
+        socket.emit("bot-interact", { action: "attack" });
+        animateArmSwing();
+      } else if (e.button === 2) {
+        // Right Click -> Use / Place
+        e.preventDefault();
+        socket.emit("bot-interact", { action: "use" });
+      }
+    });
+
+    overlay.addEventListener("contextmenu", (e) => {
+      if (isPlayMode) e.preventDefault();
+    });
+
+    function animateArmSwing() {
+      const cross = $("crosshair");
+      cross.style.transform = "translate(-50%, -50%) scale(1.4)";
+      setTimeout(() => { cross.style.transform = "translate(-50%, -50%) scale(1)"; }, 120);
+    }
+
+    // Quick Action Buttons
+    $("btnAttack").addEventListener("click", () => {
+      socket.emit("bot-interact", { action: "attack" });
+      animateArmSwing();
+    });
+    $("btnUse").addEventListener("click", () => {
+      socket.emit("bot-interact", { action: "use" });
+    });
+    $("btnDrop").addEventListener("click", () => {
+      socket.emit("bot-drop");
+      notify("Dropped held item");
+    });
+
+    // Movement Controls Pressing
+    async function press(control, pressed) {
+      if (pressed && held.get(control)) return;
+      held.set(control, pressed);
+      document.querySelectorAll(`.hold-control[data-control="${control}"]`).forEach((b) => b.classList.toggle("active", pressed));
+      socket.emit("bot-control", { control, pressed });
+    }
+
+    async function releaseAll() {
+      const controls = [...held.entries()].filter(([, isDown]) => isDown).map(([control]) => control);
+      held.clear();
+      document.querySelectorAll(".hold-control.active").forEach((b) => b.classList.remove("active"));
+      for (const control of controls) {
+        socket.emit("bot-control", { control, pressed: false });
+      }
+    }
+
+    document.querySelectorAll(".hold-control").forEach((button) => {
+      const control = button.dataset.control;
+      button.addEventListener("pointerdown", (event) => {
+        event.preventDefault();
+        button.setPointerCapture?.(event.pointerId);
+        press(control, true);
+      });
+      button.addEventListener("pointerup", () => press(control, false));
+      button.addEventListener("pointercancel", () => press(control, false));
+      button.addEventListener("lostpointercapture", () => press(control, false));
+    });
+
+    function isTyping() {
+      const tag = document.activeElement?.tagName;
+      return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+    }
+
+    const keyControls = {
+      w: "forward", W: "forward",
+      s: "back", S: "back",
+      a: "left", A: "left",
+      d: "right", D: "right",
+      " ": "jump",
+      Shift: "sneak",
+      Control: "sprint"
+    };
+
+    window.addEventListener("keydown", (e) => {
+      if (isTyping()) return;
+
+      // Hotbar slots 1 to 9
+      if (e.key >= "1" && e.key <= "9") {
+        selectHotbarSlot(Number(e.key) - 1);
+        return;
+      }
+
+      // Q to drop item
+      if (e.key === "q" || e.key === "Q") {
+        socket.emit("bot-drop");
+        notify("Dropped held item");
+        return;
+      }
+
+      if (keyControls[e.key]) {
+        e.preventDefault();
+        press(keyControls[e.key], true);
+      }
+
+      if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) {
+        e.preventDefault();
+        nudgeLook(
+          e.key === "ArrowLeft" ? -0.15 : e.key === "ArrowRight" ? 0.15 : 0,
+          e.key === "ArrowUp" ? -0.12 : e.key === "ArrowDown" ? 0.12 : 0
+        );
+      }
+    });
+
+    window.addEventListener("keyup", (e) => {
+      if (isTyping()) return;
+      if (keyControls[e.key]) press(keyControls[e.key], false);
+    });
+
+    window.addEventListener("blur", releaseAll);
+    document.addEventListener("visibilitychange", () => { if (document.hidden) releaseAll(); });
+  </script>
+</body>
+</html>

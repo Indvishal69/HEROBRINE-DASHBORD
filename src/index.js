@@ -56,7 +56,7 @@ const runtimeSettings = {
   host: process.env.MC_HOST || "",
   port: Number(process.env.MC_PORT || 25565),
   version: process.env.MC_VERSION || "auto",
-  auth: process.env.MC_AUTH || "microsoft",
+  auth: process.env.MC_AUTH || "offline",
   username: process.env.MC_USERNAME || "MinecraftBuddy"
 };
 try {
@@ -199,7 +199,7 @@ function validateSettings(input) {
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error("Port must be a whole number from 1 to 65535.");
   const version = String(input?.version || "auto").trim();
   if (version.length > 40 || /[\r\n]/.test(version)) throw new Error("Enter a valid Minecraft version or auto.");
-  const auth = String(input?.auth || "microsoft").trim().toLowerCase();
+  const auth = String(input?.auth || "offline").trim().toLowerCase();
   if (!new Set(["microsoft", "offline"]).has(auth)) throw new Error("Choose Microsoft or Offline / LAN login.");
   const username = String(input?.username || "MinecraftBuddy").trim();
   if (!username || username.length > 80 || /[\r\n]/.test(username)) throw new Error("Enter a valid bot account label.");

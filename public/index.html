@@ -202,6 +202,9 @@
       background: #050806;
       overflow: hidden;
     }
+    [hidden] {
+      display: none !important;
+    }
     .viewer-wrap iframe {
       position: absolute;
       inset: 0;
@@ -209,6 +212,7 @@
       height: 100%;
       border: 0;
       background: #050806;
+      z-index: 1;
     }
     .viewer-empty {
       position: absolute;
@@ -219,6 +223,13 @@
       padding: 25px;
       background: radial-gradient(ellipse, #1b291d, #090e0b 70%);
       z-index: 2;
+    }
+    .viewer-empty[hidden],
+    .viewer-empty.is-hidden {
+      display: none !important;
+      visibility: hidden !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
     }
     .empty-inner { max-width: 330px; }
     .empty-icon { font-size: 44px; opacity: .86; }
@@ -753,6 +764,7 @@
           </div>
           <div class="camera-tags">
             <button id="togglePlayModeBtn" class="primary" style="padding:4px 10px; font-size:11px;">🎮 PLAY AS BOT</button>
+            <button id="reloadViewerBtn" class="ghost tiny" style="padding:4px 8px; font-size:11px;" title="Reload 3D Stream">🔄 Reload POV</button>
             <span class="tag online" id="viewTag">FIRST PERSON</span>
           </div>
         </div>
@@ -1190,16 +1202,31 @@
 
       // 3D Viewer Frame
       const showViewer = Boolean(connected && (state.viewerAvailable !== false));
-      $("viewerEmpty").hidden = showViewer;
+      const emptyEl = $("viewerEmpty");
       const frame = $("viewer");
-      frame.hidden = !showViewer;
-      const url = state.viewerUrl || "/viewer/";
-      if (showViewer && frame.dataset.src !== url) {
-        frame.src = url;
-        frame.dataset.src = url;
-      } else if (!showViewer && frame.dataset.src) {
-        frame.src = "about:blank";
-        frame.dataset.src = "";
+      if (showViewer) {
+        emptyEl.hidden = true;
+        emptyEl.classList.add("is-hidden");
+        emptyEl.style.display = "none";
+
+        frame.hidden = false;
+        frame.style.display = "block";
+        const url = state.viewerUrl || "/viewer/";
+        if (frame.dataset.src !== url) {
+          frame.src = url;
+          frame.dataset.src = url;
+        }
+      } else {
+        emptyEl.hidden = false;
+        emptyEl.classList.remove("is-hidden");
+        emptyEl.style.display = "grid";
+
+        frame.hidden = true;
+        frame.style.display = "none";
+        if (frame.dataset.src) {
+          frame.src = "about:blank";
+          frame.dataset.src = "";
+        }
       }
 
       renderChat(state.chat || []);
@@ -1280,7 +1307,12 @@
 
     function aiOptions() {
       const provider = $("aiProvider").value;
-      const model = $("aiModelSelect").value === "__custom__" ? $("aiModel").value.trim() : ($("aiModelSelect").value || $("aiModel").value.trim());
+      let model = $("aiModelSelect").value === "__custom__" ? $("aiModel").value.trim() : ($("aiModelSelect").value || $("aiModel").value.trim());
+      if (provider === "gemini") {
+        if (/3\.8|38|gemini 3/i.test(model) || !model || model === "__custom__") {
+          model = "gemini-2.0-flash";
+        }
+      }
       return {
         provider,
         baseUrl: $("aiBaseUrl").value.trim(),
@@ -1417,6 +1449,17 @@
     }));
 
     $("aiAutoReply").addEventListener("change", () => guarded(saveAIOptions));
+
+    $("reloadViewerBtn").addEventListener("click", () => {
+      const frame = $("viewer");
+      const url = latestState?.viewerUrl || "/viewer/";
+      frame.src = "about:blank";
+      setTimeout(() => {
+        frame.src = url;
+        frame.dataset.src = url;
+        notify("Reloaded 3D POV stream");
+      }, 150);
+    });
 
     /* CHAT & OP COMMANDS */
     $("clearChat").addEventListener("click", () => {

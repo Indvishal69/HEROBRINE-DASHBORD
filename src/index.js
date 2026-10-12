@@ -234,7 +234,10 @@ function validateAISettings(input) {
   }
   if (parsed.username || parsed.password || parsed.search || parsed.hash) throw new Error("Put the API key in its own field; the base URL must not contain credentials, query text, or a fragment.");
   const baseUrl = rawBaseUrl.replace(/\/+$/, "");
-  const model = String(input?.model ?? aiSettings.model).trim();
+  let model = String(input?.model ?? aiSettings.model).trim().replace(/\s+/g, "-");
+  if (provider === "gemini" && (/3\.8|38|gemini-3/i.test(model) || !model.startsWith("gemini-"))) {
+    model = "gemini-2.0-flash";
+  }
   if (!model || model.length > 160 || /[\r\n]/.test(model)) throw new Error("Enter a valid model name.");
   const autoReply = Boolean(input?.autoReply ?? aiSettings.autoReply);
   const trigger = String(input?.trigger ?? aiSettings.trigger).trim();
@@ -277,14 +280,20 @@ async function requestAI(messages, config = aiSettings, keys = aiApiKeys) {
     const currentKey = keys[idx];
 
     try {
+      const requestHeaders = {
+        Authorization: `Bearer ${currentKey}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://github.com/minecraft-ai-buddy",
+        "X-Title": "Minecraft AI Buddy"
+      };
+      if (config.provider === "gemini") {
+        requestHeaders["api-key"] = currentKey;
+        requestHeaders["x-goog-api-key"] = currentKey;
+      }
+
       const response = await fetch(`${config.baseUrl}/chat/completions`, {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${currentKey}`,
-          "Content-Type": "application/json",
-          "HTTP-Referer": "https://github.com/minecraft-ai-buddy",
-          "X-Title": "Minecraft AI Buddy"
-        },
+        headers: requestHeaders,
         body: JSON.stringify({
           model: config.model,
           messages,
@@ -345,6 +354,13 @@ async function connectAI(input) {
 
   if (keys.length === 0) {
     throw new Error("Paste at least one valid API key.");
+  }
+
+  if (next.provider === "gemini") {
+    const invalidKey = keys.find((k) => !k.startsWith("AIzaSy"));
+    if (invalidKey) {
+      throw new Error("Google Gemini API key 'AIzaSy...' se shuru honi chahiye. Kripya Google AI Studio (aistudio.google.com) se 'Get API key' par jaakar apni key copy karein.");
+    }
   }
 
   await requestAI([{ role: "user", content: "Reply with READY." }], next, keys);

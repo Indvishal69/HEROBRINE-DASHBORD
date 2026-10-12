@@ -150,8 +150,21 @@ let viewerActive = false;
 let dashboard = null;
 let aiApiKeys = [];
 let activeKeyIndex = 0;
-if (process.env.OPENROUTER_API_KEY) aiApiKeys.push(process.env.OPENROUTER_API_KEY);
-else if (process.env.OPENAI_API_KEY) aiApiKeys.push(process.env.OPENAI_API_KEY);
+if (process.env.OPENROUTER_API_KEY) {
+  aiApiKeys.push(process.env.OPENROUTER_API_KEY);
+} else if (process.env.GEMINI_API_KEY) {
+  aiApiKeys.push(process.env.GEMINI_API_KEY);
+  aiSettings.provider = "gemini";
+  aiSettings.baseUrl = PROVIDER_PRESETS.gemini.baseUrl;
+  aiSettings.model = PROVIDER_PRESETS.gemini.models[0].id;
+} else if (process.env.GROQ_API_KEY) {
+  aiApiKeys.push(process.env.GROQ_API_KEY);
+  aiSettings.provider = "groq";
+  aiSettings.baseUrl = PROVIDER_PRESETS.groq.baseUrl;
+  aiSettings.model = PROVIDER_PRESETS.groq.models[0].id;
+} else if (process.env.OPENAI_API_KEY) {
+  aiApiKeys.push(process.env.OPENAI_API_KEY);
+}
 let aiConnected = aiApiKeys.length > 0;
 let aiLastError = null;
 let aiReplyInProgress = false;

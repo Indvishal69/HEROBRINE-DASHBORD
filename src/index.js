@@ -86,9 +86,10 @@ const PROVIDER_PRESETS = {
     name: "Groq (Ultra-Fast)",
     baseUrl: "https://api.groq.com/openai/v1",
     models: [
+      { id: "llama-3.1-8b-instant", name: "Llama 3.1 8B Instant (Free & Recommended)" },
       { id: "llama-3.3-70b-versatile", name: "Llama 3.3 70B Versatile" },
-      { id: "llama-3.1-8b-instant", name: "Llama 3.1 8B Instant" },
-      { id: "mixtral-8x7b-32768", name: "Mixtral 8x7B" }
+      { id: "deepseek-r1-distill-llama-70b", name: "DeepSeek R1 Distill 70B" },
+      { id: "gemma2-9b-it", name: "Gemma 2 9B" }
     ]
   },
   gemini: {

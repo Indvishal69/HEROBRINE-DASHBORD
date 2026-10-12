@@ -805,29 +805,31 @@ function dashboardState({ viewerPort }) {
   };
 }
 
+let activeViewer = null;
+
+function closeViewer() {
+  if (activeViewer) {
+    try { activeViewer.close?.(); } catch {}
+    activeViewer = null;
+  }
+  viewerActive = false;
+}
+
 function startViewer(candidate) {
-  if (viewerActive && candidate.viewer) return;
-  const originalListen = http.Server.prototype.listen;
-  http.Server.prototype.listen = function (...args) {
-    if (args[0] === VIEWER_PORT) {
-      this.once("error", (error) => {
-        if (error?.code !== "EADDRINUSE") {
-          viewerActive = false;
-        }
-        console.error(`[minecraft-ai-buddy] POV viewer port: ${error.message}`);
-      });
-      if (typeof args[1] === "function") return originalListen.call(this, args[0], "127.0.0.1", args[1]);
-      if (args.length === 1) return originalListen.call(this, args[0], "127.0.0.1");
-    }
-    return originalListen.apply(this, args);
-  };
+  if (candidate.viewer) {
+    activeViewer = candidate.viewer;
+    viewerActive = true;
+    return;
+  }
+  closeViewer();
   try {
     mineflayerViewer(candidate, { port: VIEWER_PORT, firstPerson: true, viewDistance: 4 });
+    activeViewer = candidate.viewer;
     viewerActive = true;
+    console.error(`[minecraft-ai-buddy] 3D POV viewer active on port ${VIEWER_PORT}`);
   } catch (error) {
-    viewerActive = true;
-  } finally {
-    http.Server.prototype.listen = originalListen;
+    console.error(`[minecraft-ai-buddy] Viewer startup error: ${error.message}`);
+    viewerActive = false;
   }
 }
 
@@ -870,7 +872,11 @@ async function connectBot() {
     auth,
     hideErrors: true
   };
-  if (version && version.toLowerCase() !== "auto") options.version = version;
+  if (version && version.toLowerCase() !== "auto") {
+    options.version = version;
+  } else if (host.includes("phantomhorizon549") || host.includes("mcsh.io")) {
+    options.version = "1.21.1";
+  }
 
   deliberateDisconnect = false;
   botState = "connecting";
@@ -927,6 +933,7 @@ async function connectBot() {
 
       candidate.on("kicked", (reason) => {
         lastError = typeof reason === "string" ? reason : JSON.stringify(reason);
+        console.error(`[AIBuddy] Kicked from server: ${lastError}`);
         if (!settled) finish(new Error(`Server rejected the bot: ${lastError}`));
       });
 
@@ -938,11 +945,11 @@ async function connectBot() {
 
       candidate.once("end", (reason) => {
         if (autonomousLoopTimer) clearInterval(autonomousLoopTimer);
-        try { candidate.viewer?.close?.(); } catch { /* The viewer may already be closed. */ }
-        viewerActive = false;
+        closeViewer();
         if (bot === candidate) bot = null;
         botState = "disconnected";
         if (reason) lastError = String(reason);
+        console.error(`[AIBuddy] Bot disconnected: ${reason || "ended"}`);
         if (!settled) finish(new Error(`Connection ended before the bot joined${reason ? `: ${reason}` : "."}`));
         dashboard?.emit("state", dashboardState({ viewerPort: VIEWER_PORT }));
         if (!deliberateDisconnect) {
@@ -1275,10 +1282,9 @@ register(
     const currentBot = bot;
     botState = "disconnected";
     bot = null;
-    viewerActive = false;
+    closeViewer();
     currentBot.pathfinder?.setGoal(null);
-    try { currentBot.viewer?.close?.(); } catch { /* The viewer may already be closed. */ }
-    currentBot.quit("AI companion disconnecting");
+    try { currentBot.quit("AI companion disconnecting"); } catch { /* The socket may already be closed. */ }
     return { state: "disconnected" };
   }
 );

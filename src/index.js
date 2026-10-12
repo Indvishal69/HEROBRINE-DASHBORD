@@ -53,7 +53,7 @@ const VIEWER_PORT = Number(process.env.MC_VIEWER_PORT || 3007);
 console.log = (...args) => console.error(...args);
 
 const runtimeSettings = {
-  host: process.env.MC_HOST || "",
+  host: process.env.MC_HOST || "phantomhorizon549.mcsh.io",
   port: Number(process.env.MC_PORT || 25565),
   version: process.env.MC_VERSION || "auto",
   auth: process.env.MC_AUTH || "offline",
@@ -83,11 +83,11 @@ const PROVIDER_PRESETS = {
   },
   groq: {
     id: "groq",
-    name: "Groq (Ultra-Fast)",
+    name: "Groq (Ultra-Fast Llama 3.3 / 3.1)",
     baseUrl: "https://api.groq.com/openai/v1",
     models: [
-      { id: "llama-3.1-8b-instant", name: "Llama 3.1 8B Instant (Free & Recommended)" },
-      { id: "llama-3.3-70b-versatile", name: "Llama 3.3 70B Versatile" },
+      { id: "llama-3.3-70b-versatile", name: "Llama 3.3 70B Versatile (Free & Recommended)" },
+      { id: "llama-3.1-8b-instant", name: "Llama 3.1 8B Instant" },
       { id: "deepseek-r1-distill-llama-70b", name: "DeepSeek R1 Distill 70B" },
       { id: "gemma2-9b-it", name: "Gemma 2 9B" }
     ]
@@ -318,6 +318,60 @@ async function requestAI(messages, config = aiSettings, keys = aiApiKeys) {
           continue;
         }
 
+        // Automatic Model Fallback for Groq
+        if ((response.status === 404 || response.status === 400) && config.provider === "groq") {
+          const fallbackModel = config.model === "llama-3.3-70b-versatile" ? "llama-3.1-8b-instant" : "llama-3.3-70b-versatile";
+          console.error(`[AIBuddy AI] Groq model '${config.model}' returned ${response.status}. Retrying with fallback model '${fallbackModel}'...`);
+          config.model = fallbackModel;
+          const retryRes = await fetch(`${config.baseUrl}/chat/completions`, {
+            method: "POST",
+            headers: requestHeaders,
+            body: JSON.stringify({
+              model: fallbackModel,
+              messages,
+              max_tokens: 220,
+              temperature: 0.7
+            }),
+            signal: AbortSignal.timeout(30_000)
+          });
+          if (retryRes.ok) {
+            const retryPayload = await retryRes.json().catch(() => ({}));
+            const content = retryPayload?.choices?.[0]?.message?.content;
+            const answer = typeof content === "string" ? content : Array.isArray(content) ? content.map((p) => p?.text || "").join(" ") : "";
+            if (answer.trim()) {
+              activeKeyIndex = idx;
+              return answer.trim();
+            }
+          }
+        }
+
+        // Automatic Model Fallback for Gemini
+        if ((response.status === 404 || response.status === 400) && config.provider === "gemini") {
+          const fallbackModel = config.model === "gemini-2.0-flash" ? "gemini-1.5-flash" : "gemini-2.0-flash";
+          console.error(`[AIBuddy AI] Gemini model '${config.model}' returned ${response.status}. Retrying with fallback model '${fallbackModel}'...`);
+          config.model = fallbackModel;
+          const retryRes = await fetch(`${config.baseUrl}/chat/completions`, {
+            method: "POST",
+            headers: requestHeaders,
+            body: JSON.stringify({
+              model: fallbackModel,
+              messages,
+              max_tokens: 220,
+              temperature: 0.7
+            }),
+            signal: AbortSignal.timeout(30_000)
+          });
+          if (retryRes.ok) {
+            const retryPayload = await retryRes.json().catch(() => ({}));
+            const content = retryPayload?.choices?.[0]?.message?.content;
+            const answer = typeof content === "string" ? content : Array.isArray(content) ? content.map((p) => p?.text || "").join(" ") : "";
+            if (answer.trim()) {
+              activeKeyIndex = idx;
+              return answer.trim();
+            }
+          }
+        }
+
         throw new Error(`AI Provider error (HTTP ${response.status}): ${errorMsg}`);
       }
 
@@ -349,7 +403,7 @@ async function connectAI(input) {
   const raw = String(input?.apiKey || input?.apiKeys || "").trim();
   const keys = raw
     .split(/[\r\n,;]+/)
-    .map((k) => k.trim())
+    .map((k) => k.trim().replace(/^["']|["']$/g, "").trim())
     .filter((k) => k.length > 5);
 
   if (keys.length === 0) {
@@ -375,16 +429,27 @@ async function connectAI(input) {
     next.provider = "openai";
     next.baseUrl = PROVIDER_PRESETS.openai.baseUrl;
     next.model = PROVIDER_PRESETS.openai.models[0].id;
-  } else {
-    throw new Error(
-      "Aapki API key kisi standard AI provider se match nahi hui. " +
-      "Groq ki key 'gsk_...' se shuru hoti hai (console.groq.com/keys) aur " +
-      "Gemini ki key 'AIzaSy...' se shuru hoti hai (aistudio.google.com). " +
-      "Kripya console se sahi API key copy karke paste karein."
-    );
+  } else if (input?.provider && PROVIDER_PRESETS[input.provider]) {
+    next.provider = input.provider;
+    next.baseUrl = PROVIDER_PRESETS[input.provider].baseUrl || next.baseUrl;
+    if (!next.model || next.model === "__custom__") {
+      next.model = PROVIDER_PRESETS[input.provider].models[0]?.id || next.model;
+    }
   }
 
-  await requestAI([{ role: "user", content: "Reply with READY." }], next, keys);
+  try {
+    await requestAI([{ role: "user", content: "Reply with READY." }], next, keys);
+  } catch (err) {
+    const rawMsg = err.message || String(err);
+    if (/401|invalid_api_key|unauthorized/i.test(rawMsg)) {
+      throw new Error(`API key invalid / expired hai! Kripya ${next.provider.toUpperCase()} console se nayi API key check karein.`);
+    }
+    if (/429|quota|rate limit|resource_exhausted/i.test(rawMsg)) {
+      throw new Error(`API key ka quota ya rate limit exceed ho gaya hai (${next.provider.toUpperCase()}). Kripya doosri key use karein.`);
+    }
+    throw new Error(`AI connect error (${next.provider.toUpperCase()}): ${rawMsg}`);
+  }
+
   await persistAISettings(next);
   aiApiKeys = keys;
   activeKeyIndex = 0;
@@ -837,7 +902,7 @@ function dashboardState({ viewerPort }) {
     chat: recentChat.slice(-40),
     settings: { ...runtimeSettings },
     ai: aiStatus(),
-    viewerAvailable: Boolean(bot?.entity),
+    viewerAvailable: Boolean(bot?.entity && viewerActive),
     viewerUrl: "/viewer/"
   };
 }

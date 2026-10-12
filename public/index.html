@@ -1156,14 +1156,16 @@
       // Hotbar
       renderHotbar(bot.hotbar || [], bot.activeSlot ?? 0);
 
-      // Server Settings (Only populate on initial load so background ticks do NOT overwrite user selection)
+      // Server Settings (Persist in localStorage so background ticks or page reloads never revert user choices)
       if (state.settings && !settingsLoadedOnce) {
         settingsLoadedOnce = true;
-        setField("host", state.settings.host);
-        setField("port", state.settings.port);
-        setField("version", state.settings.version);
-        setField("auth", state.settings.auth);
-        setField("username", state.settings.username);
+        let localSaved = {};
+        try { localSaved = JSON.parse(localStorage.getItem("buddy_settings") || "{}"); } catch {}
+        setField("host", localSaved.host || state.settings.host || "phantomhorizon549.mcsh.io");
+        setField("port", localSaved.port || state.settings.port || 25565);
+        setField("version", localSaved.version || state.settings.version || "auto");
+        setField("auth", localSaved.auth || state.settings.auth || "offline");
+        setField("username", localSaved.username || state.settings.username || "MinecraftBuddy");
       }
 
       // AI Settings & Presets
@@ -1173,7 +1175,8 @@
           presetsData = ai.presets;
           if (!aiLoadedOnce) {
             aiLoadedOnce = true;
-            updateProviderPresetsUI(ai.provider || "openrouter", ai.model);
+            const savedProvider = localStorage.getItem("buddy_ai_provider") || ai.provider || "openrouter";
+            updateProviderPresetsUI(savedProvider, ai.model);
             setField("aiBaseUrl", ai.baseUrl);
             setField("aiModel", ai.model);
             if (document.activeElement !== $("aiAutoReply")) $("aiAutoReply").checked = Boolean(ai.autoReply);
@@ -1215,7 +1218,7 @@
         frame.hidden = false;
         frame.style.display = "block";
         const url = state.viewerUrl || "/viewer/";
-        if (frame.dataset.src !== url) {
+        if (!frame.src || frame.src === "about:blank" || frame.dataset.src !== url) {
           frame.src = url;
           frame.dataset.src = url;
         }
@@ -1291,6 +1294,7 @@
 
     $("aiProvider").addEventListener("change", (e) => {
       const p = e.target.value;
+      try { localStorage.setItem("buddy_ai_provider", p); } catch {}
       const info = presetsData[p];
       if (info) {
         $("aiBaseUrl").value = info.baseUrl;
@@ -1316,12 +1320,13 @@
     /* SAVE SETTINGS */
     async function saveSettings() {
       const settings = {
-        host: $("host").value.trim(),
+        host: $("host").value.trim() || "phantomhorizon549.mcsh.io",
         port: safeNumber("port"),
         version: $("version").value.trim() || "auto",
         auth: $("auth").value,
-        username: $("username").value.trim() || "AIBuddy"
+        username: $("username").value.trim() || "MinecraftBuddy"
       };
+      try { localStorage.setItem("buddy_settings", JSON.stringify(settings)); } catch {}
       const out = await post("/api/settings", settings);
       if (latestState) latestState.settings = out.settings;
       $("savedNote").textContent = "Saved on this PC. Applies to current/next connection.";
@@ -1420,12 +1425,25 @@
     checkAuth().then(fetchState);
 
     /* BUTTONS & AUTO-SAVE LISTENERS */
+    function syncLocalSettings() {
+      try {
+        const current = {
+          host: $("host").value.trim() || "phantomhorizon549.mcsh.io",
+          port: safeNumber("port"),
+          version: $("version").value.trim() || "auto",
+          auth: $("auth").value,
+          username: $("username").value.trim() || "MinecraftBuddy"
+        };
+        localStorage.setItem("buddy_settings", JSON.stringify(current));
+      } catch {}
+    }
+
     $("saveSettings").addEventListener("click", () => guarded(saveSettings));
-    $("auth").addEventListener("change", () => guarded(saveSettings));
-    $("host").addEventListener("change", () => guarded(saveSettings));
-    $("port").addEventListener("change", () => guarded(saveSettings));
-    $("version").addEventListener("change", () => guarded(saveSettings));
-    $("username").addEventListener("change", () => guarded(saveSettings));
+    $("auth").addEventListener("change", () => { syncLocalSettings(); guarded(saveSettings); });
+    $("host").addEventListener("change", () => { syncLocalSettings(); guarded(saveSettings); });
+    $("port").addEventListener("change", () => { syncLocalSettings(); guarded(saveSettings); });
+    $("version").addEventListener("change", () => { syncLocalSettings(); guarded(saveSettings); });
+    $("username").addEventListener("change", () => { syncLocalSettings(); guarded(saveSettings); });
     $("connectButton").addEventListener("click", () => guarded(async () => {
       await saveSettings();
       await tool("minecraft_connect");

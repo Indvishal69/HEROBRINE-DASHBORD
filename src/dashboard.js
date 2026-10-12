@@ -93,8 +93,24 @@ export function startDashboard({ port, viewerPort, getState, executeTool, saveSe
     return res.json({ authenticated: checkToken(req) });
   });
 
-  // Static files
-  app.use(express.static(publicDirectory, { etag: true, maxAge: "1h" }));
+  // Explicit no-cache headers for index route
+  app.get("/", (_req, res, next) => {
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
+    next();
+  });
+
+  // Static files with NO CACHING so browsers immediately receive updates
+  app.use(express.static(publicDirectory, {
+    etag: false,
+    maxAge: 0,
+    setHeaders: (res, filePath) => {
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      res.setHeader("Pragma", "no-cache");
+      res.setHeader("Expires", "0");
+    }
+  }));
 
   // Socket.IO with auth support
   const io = new SocketServer(webServer, {

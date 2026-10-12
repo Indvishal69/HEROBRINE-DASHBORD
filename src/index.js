@@ -345,7 +345,7 @@ async function requestAI(messages, config = aiSettings, keys = aiApiKeys) {
 }
 
 async function connectAI(input) {
-  const next = validateAISettings(input);
+  let next = validateAISettings(input);
   const raw = String(input?.apiKey || input?.apiKeys || "").trim();
   const keys = raw
     .split(/[\r\n,;]+/)
@@ -356,11 +356,32 @@ async function connectAI(input) {
     throw new Error("Paste at least one valid API key.");
   }
 
-  if (next.provider === "gemini") {
-    const invalidKey = keys.find((k) => !k.startsWith("AIzaSy"));
-    if (invalidKey) {
-      throw new Error("Google Gemini API key 'AIzaSy...' se shuru honi chahiye. Kripya Google AI Studio (aistudio.google.com) se 'Get API key' par jaakar apni key copy karein.");
-    }
+  const firstKey = keys[0];
+
+  // Smart Auto-Detection: Match provider and models automatically with key format
+  if (firstKey.startsWith("gsk_")) {
+    next.provider = "groq";
+    next.baseUrl = PROVIDER_PRESETS.groq.baseUrl;
+    next.model = PROVIDER_PRESETS.groq.models[0].id;
+  } else if (firstKey.startsWith("AIzaSy")) {
+    next.provider = "gemini";
+    next.baseUrl = PROVIDER_PRESETS.gemini.baseUrl;
+    next.model = PROVIDER_PRESETS.gemini.models[0].id;
+  } else if (firstKey.startsWith("sk-or-")) {
+    next.provider = "openrouter";
+    next.baseUrl = PROVIDER_PRESETS.openrouter.baseUrl;
+    next.model = PROVIDER_PRESETS.openrouter.models[0].id;
+  } else if (firstKey.startsWith("sk-proj-") || (firstKey.startsWith("sk-") && !firstKey.startsWith("sk-or-"))) {
+    next.provider = "openai";
+    next.baseUrl = PROVIDER_PRESETS.openai.baseUrl;
+    next.model = PROVIDER_PRESETS.openai.models[0].id;
+  } else {
+    throw new Error(
+      "Aapki API key kisi standard AI provider se match nahi hui. " +
+      "Groq ki key 'gsk_...' se shuru hoti hai (console.groq.com/keys) aur " +
+      "Gemini ki key 'AIzaSy...' se shuru hoti hai (aistudio.google.com). " +
+      "Kripya console se sahi API key copy karke paste karein."
+    );
   }
 
   await requestAI([{ role: "user", content: "Reply with READY." }], next, keys);
@@ -1428,3 +1449,13 @@ if (!process.env.PORT && !process.env.RENDER) {
 }
 
 console.error(`[minecraft-ai-buddy] Server ready; Web dashboard: http://0.0.0.0:${GUI_PORT}`);
+
+// Auto-connect bot on startup
+setTimeout(() => {
+  if (runtimeSettings.host && (botState === "disconnected" || !bot)) {
+    console.error("[minecraft-ai-buddy] Automatically connecting bot to server on startup...");
+    connectBot().catch((err) => {
+      console.error(`[minecraft-ai-buddy] Startup connect note: ${err.message}`);
+    });
+  }
+}, 2500);

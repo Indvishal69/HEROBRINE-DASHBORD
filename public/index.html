@@ -774,9 +774,10 @@
           <!-- Empty placeholder before bot connects -->
           <div class="viewer-empty" id="viewerEmpty">
             <div class="empty-inner">
-              <div class="empty-icon">🎮</div>
-              <div class="empty-title">Live POV Screen</div>
-              <div class="empty-copy">Bot server se connect hone par yahan uska live 3D first-person world dikhega. Aap browser se seedhe game khel payenge!</div>
+              <div class="empty-icon" id="emptyIcon">🎮</div>
+              <div class="empty-title" id="emptyTitle">Bot Offline Hai</div>
+              <div class="empty-copy" id="emptyCopy">Live 3D camera POV dekhne ke liye neeche button daba kar bot connect karein:</div>
+              <button class="primary" id="emptyConnectBtn" style="margin-top:14px; padding:10px 22px; font-weight:700; font-size:13px; border-radius:99px; box-shadow:0 4px 14px #4f7b4c60;">⚡ CONNECT BOT NOW</button>
             </div>
           </div>
 
@@ -1204,6 +1205,8 @@
       const showViewer = Boolean(connected && (state.viewerAvailable !== false));
       const emptyEl = $("viewerEmpty");
       const frame = $("viewer");
+      const viewTag = $("viewTag");
+
       if (showViewer) {
         emptyEl.hidden = true;
         emptyEl.classList.add("is-hidden");
@@ -1216,6 +1219,10 @@
           frame.src = url;
           frame.dataset.src = url;
         }
+        if (viewTag) {
+          viewTag.className = "tag online";
+          viewTag.textContent = "● LIVE POV STREAMING";
+        }
       } else {
         emptyEl.hidden = false;
         emptyEl.classList.remove("is-hidden");
@@ -1226,6 +1233,23 @@
         if (frame.dataset.src) {
           frame.src = "about:blank";
           frame.dataset.src = "";
+        }
+        if (viewTag) {
+          viewTag.className = "tag";
+          viewTag.textContent = bot.state === "connecting" ? "CONNECTING…" : "BOT OFFLINE";
+        }
+
+        const titleEl = $("emptyTitle");
+        const copyEl = $("emptyCopy");
+        const actionBtn = $("emptyConnectBtn");
+        if (bot.state === "connecting") {
+          if (titleEl) titleEl.textContent = "Connecting to Minecraft World...";
+          if (copyEl) copyEl.textContent = "Bot server se connect ho raha hai. Thoda sa intezar karein, 3D world stream shuru hone wali hai!";
+          if (actionBtn) actionBtn.style.display = "none";
+        } else {
+          if (titleEl) titleEl.textContent = "Bot Offline Hai";
+          if (copyEl) copyEl.textContent = "Live 3D camera POV dekhne ke liye neeche button daba kar bot connect karein:";
+          if (actionBtn) actionBtn.style.display = "inline-block";
         }
       }
 
@@ -1459,6 +1483,50 @@
         frame.dataset.src = url;
         notify("Reloaded 3D POV stream");
       }, 150);
+    });
+
+    $("emptyConnectBtn")?.addEventListener("click", () => {
+      $("connectButton").click();
+    });
+
+    /* AUTO-DETECT PROVIDER ON KEY INPUT */
+    $("aiApiKey").addEventListener("input", (e) => {
+      const val = e.target.value.trim();
+      const first = val.split(/[\r\n,;]+/)[0]?.trim() || "";
+      if (first.startsWith("gsk_")) {
+        if ($("aiProvider").value !== "groq") {
+          $("aiProvider").value = "groq";
+          const info = presetsData.groq;
+          if (info) {
+            $("aiBaseUrl").value = info.baseUrl;
+            updateProviderPresetsUI("groq", info.models[0]?.id || "");
+            $("aiModel").value = info.models[0]?.id || "";
+          }
+          notify("⚡ Groq API Key detect ho gayi! Provider auto-set to Groq.");
+        }
+      } else if (first.startsWith("AIzaSy")) {
+        if ($("aiProvider").value !== "gemini") {
+          $("aiProvider").value = "gemini";
+          const info = presetsData.gemini;
+          if (info) {
+            $("aiBaseUrl").value = info.baseUrl;
+            updateProviderPresetsUI("gemini", info.models[0]?.id || "");
+            $("aiModel").value = info.models[0]?.id || "";
+          }
+          notify("🌟 Google Gemini Key detect ho gayi! Provider auto-set to Gemini.");
+        }
+      } else if (first.startsWith("sk-or-")) {
+        if ($("aiProvider").value !== "openrouter") {
+          $("aiProvider").value = "openrouter";
+          const info = presetsData.openrouter;
+          if (info) {
+            $("aiBaseUrl").value = info.baseUrl;
+            updateProviderPresetsUI("openrouter", info.models[0]?.id || "");
+            $("aiModel").value = info.models[0]?.id || "";
+          }
+          notify("🚀 OpenRouter Key detect ho gayi! Provider auto-set to OpenRouter.");
+        }
+      }
     });
 
     /* CHAT & OP COMMANDS */

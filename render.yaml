@@ -1,15 +1,19 @@
 services:
   - type: web
-    name: minecraft-ai-buddy
+    name: minecraft-nexus-ai
     runtime: node
     plan: free
-    buildCommand: npm install
+    buildCommand: npm install && npm run build
     startCommand: npm start
     envVars:
       - key: NODE_VERSION
-        value: 22
+        value: "22"
+      - key: PORT
+        value: "3000"
       - key: DASHBOARD_PASSWORD
         value: buddy123
+      - key: NEXUS_MASTER_KEY
+        generateValue: true
       - key: MC_HOST
         value: phantomhorizon549.mcsh.io
       - key: MC_PORT
@@ -18,5 +22,9 @@ services:
         value: offline
       - key: MC_USERNAME
         value: AIBuddy
+      - key: GROQ_API_KEY
+        sync: false
       - key: OPENROUTER_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
         sync: false

@@ -1,14 +1,17 @@
 {
-  "name": "minecraft-ai-buddy",
+  "name": "minecraft-nexus-ai",
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "A free local Minecraft Java dashboard with first-person viewer and Codex MCP controls.",
+  "description": "Minecraft Nexus AI - Professional Autonomous SMP Player",
   "engines": {
     "node": ">=22"
   },
   "scripts": {
-    "start": "node src/index.js"
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "node --experimental-strip-types src/index.ts",
+    "test": "node --test tests/all.test.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.1",
@@ -24,5 +27,10 @@
   },
   "overrides": {
     "uuid": "^11.1.1"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.6.5",
+    "typescript": "^7.0.2"
   }
 }

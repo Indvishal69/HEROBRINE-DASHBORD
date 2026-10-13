@@ -27,6 +27,7 @@ import { economyManager } from "../engine/economy-manager.js";
 import { visionAdapter } from "../engine/vision-adapter.js";
 import { buildTransactionManager } from "../engine/build-transactions.js";
 import { eventTimeline } from "../engine/event-timeline.js";
+import { clutchManager } from "../engine/clutch-manager.js";
 import { chatIntentParser } from "../ai/intent-parser.js";
 const DASHBOARD_PASSWORD = process.env.DASHBOARD_PASSWORD || "buddy123";
 export function startServer(port) {
@@ -155,7 +156,8 @@ export function startServer(port) {
             settings: botService.getConfig(),
             viewerAvailable: viewerManager.isViewerActive(),
             viewerUrl: "/viewer/",
-            authenticated: isAuth
+            authenticated: isAuth,
+            clutch: clutchManager.getSnapshot(botService.getBot())
         });
     });
     // Connection endpoints
@@ -487,6 +489,34 @@ export function startServer(port) {
         res.setHeader("Content-Disposition", "attachment; filename=nexus_diagnostics.json");
         res.setHeader("Content-Type", "application/json");
         res.send(eventTimeline.exportSanitizedDiagnostics());
+    });
+    // ======================== MLG CLUTCH & FALL-RECOVERY ========================
+    app.get("/api/clutch/status", requireAuth, (_req, res) => {
+        res.json(clutchManager.getSnapshot(botService.getBot()));
+    });
+    app.post("/api/clutch/mode", requireAuth, (req, res) => {
+        const { mode, triggerDistanceBlocks, triggerTimeMs, autoRecoverWater, steerToNearbySafeSurfaces } = req.body;
+        clutchManager.updateConfig({
+            mode,
+            triggerDistanceBlocks: triggerDistanceBlocks ? Number(triggerDistanceBlocks) : undefined,
+            triggerTimeMs: triggerTimeMs ? Number(triggerTimeMs) : undefined,
+            autoRecoverWater: autoRecoverWater !== undefined ? Boolean(autoRecoverWater) : undefined,
+            steerToNearbySafeSurfaces: steerToNearbySafeSurfaces !== undefined ? Boolean(steerToNearbySafeSurfaces) : undefined
+        });
+        res.json({ success: true, config: clutchManager.getConfig(), snapshot: clutchManager.getSnapshot(botService.getBot()) });
+    });
+    app.get("/api/clutch/stats", requireAuth, (_req, res) => {
+        res.json(clutchManager.getStats());
+    });
+    app.post("/api/clutch/arena/test", requireAuth, async (req, res) => {
+        const { fallHeight, surfaceType, dimension } = req.body;
+        const bot = botService.getBot();
+        const result = await clutchManager.runArenaDrill(bot, {
+            fallHeight: Number(fallHeight || 20),
+            surfaceType: surfaceType || "stone",
+            dimension: dimension || "overworld"
+        });
+        res.json(result);
     });
     // WebSocket upgrade proxy for 3D viewer
     webServer.on("upgrade", (req, clientSocket, head) => {

@@ -563,6 +563,7 @@
       <a class="nav-item active" data-page="overview"><span class="nav-icon">📊</span> Overview</a>
       <a class="nav-item" data-page="viewer"><span class="nav-icon">👁️</span> Live Bot POV</a>
       <a class="nav-item" data-page="combat"><span class="nav-icon">⚔️</span> Combat & Survival</a>
+      <a class="nav-item" data-page="mlg-clutch"><span class="nav-icon">🪂</span> MLG Clutch & Arena</a>
       <a class="nav-item" data-page="campaigns"><span class="nav-icon">🗺️</span> Campaigns & Autonomy</a>
       <a class="nav-item" data-page="world-travel"><span class="nav-icon">🧭</span> World & Travel</a>
       <a class="nav-item" data-page="transactions"><span class="nav-icon">🔄</span> Replay & Rollbacks</a>
@@ -596,6 +597,7 @@
           <div class="vital-unit">🍖 Sat: <span id="vitalSat">5</span></div>
           <div class="vital-unit">🧭 <span id="vitalCoords">X:0 Y:64 Z:0</span></div>
           <div class="vital-unit">🌍 <span id="vitalDim">overworld</span></div>
+          <div class="vital-unit" id="vitalClutchPill" style="display:none; color:#f87171; font-weight:700; background:rgba(239, 68, 68, 0.15); border:1px solid #ef4444; border-radius:4px; padding:2px 6px;">🪂 FALLING</div>
         </div>
       </div>
       <div class="topbar-right" style="display: flex; gap: 8px; align-items: center;">
@@ -1170,6 +1172,130 @@
         </div>
       </section>
 
+      <!-- PAGE: MLG CLUTCH & ARENA -->
+      <section class="page" id="page-mlg-clutch">
+        <div class="page-head">
+          <div>
+            <h1 class="page-title">🪂 Advanced MLG Clutch & Fall-Recovery System</h1>
+            <p class="page-subtitle">Deterministic 20 TPS physics detection, inventory item selection, Nether evaporation guards, and automated test arena.</p>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn btn-emerald" onclick="fetchClutchTelemetry()">🔄 Refresh Clutch Telemetry</button>
+          </div>
+        </div>
+
+        <div class="grid-4">
+          <div class="card">
+            <div class="card-head"><span class="card-title">Falling Status</span><span class="tag tag-healthy" id="clutchStateBadge">IDLE</span></div>
+            <div class="card-value" id="clutchStatusText">Ground / Safe</div>
+            <div class="card-desc" id="clutchFallMetrics">Velocity: 0.00 m/s · Distance: 0.0m</div>
+          </div>
+          <div class="card">
+            <div class="card-head"><span class="card-title">Landing Estimation</span></div>
+            <div class="card-value" id="clutchLandingTime" style="font-size: 16px;">0 ms (0 ticks)</div>
+            <div class="card-desc" id="clutchPredictedDamage">Predicted Dmg: 0 HP</div>
+          </div>
+          <div class="card">
+            <div class="card-head"><span class="card-title">Active Strategy</span></div>
+            <div class="card-value" id="clutchStrategyText" style="font-size: 16px;">none</div>
+            <div class="card-desc" id="clutchSurfaceText">Surface: air (Y: 0)</div>
+          </div>
+          <div class="card">
+            <div class="card-head"><span class="card-title">Success Rate</span><span class="tag tag-healthy" id="clutchRateBadge">100%</span></div>
+            <div class="card-value" id="clutchStatsAttempts" style="font-size: 16px;">0 Attempts</div>
+            <div class="card-desc" id="clutchAvgDelay">Avg Timing Offset: 45ms</div>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <!-- Clutch Configuration -->
+          <div class="card">
+            <div class="card-head"><span class="card-title">Clutch Operating Mode & Settings</span></div>
+            <div class="form-group">
+              <label>Operating Mode</label>
+              <select id="selClutchMode" onchange="saveClutchMode()">
+                <option value="disabled">Disabled (Do not attempt clutch)</option>
+                <option value="practice">Practice Mode (Logs timing metrics & drills)</option>
+                <option value="survival_emergency" selected>Survival Emergency (Automated fall clutch)</option>
+              </select>
+            </div>
+            <div class="grid-2">
+              <div class="form-group">
+                <label>Trigger Reach (Blocks)</label>
+                <input type="number" id="numClutchDistance" value="3.4" step="0.1">
+              </div>
+              <div class="form-group">
+                <label>Trigger Offset (ms)</label>
+                <input type="number" id="numClutchTimeMs" value="160" step="10">
+              </div>
+            </div>
+            <div style="display: flex; gap: 16px; margin: 12px 0;">
+              <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; cursor: pointer;">
+                <input type="checkbox" id="chkAutoRecoverWater" checked style="width: auto;"> Auto Water Retrieval
+              </label>
+              <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; cursor: pointer;">
+                <input type="checkbox" id="chkAirSteering" checked style="width: auto;"> Lateral Air Drift Steering
+              </label>
+            </div>
+            <button class="btn btn-emerald" onclick="saveClutchConfig()">Save Clutch Settings</button>
+
+            <div style="margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--card-border);">
+              <div style="font-size: 12px; font-weight: 700; margin-bottom: 8px; color: var(--text-muted);">Available Inventory Clutch Items:</div>
+              <div id="clutchAvailableItems" style="display: flex; gap: 8px; flex-wrap: wrap;">
+                <span class="tag tag-offline">Scanning inventory...</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Local Test Arena -->
+          <div class="card">
+            <div class="card-head"><span class="card-title">Local Fall Test Arena</span></div>
+            <div class="form-group">
+              <label>Fall Drop Height</label>
+              <select id="selArenaHeight">
+                <option value="5">5 Blocks (Minor fall — 2 HP damage)</option>
+                <option value="10">10 Blocks (Standard fall — 7 HP damage)</option>
+                <option value="20" selected>20 Blocks (High fall — 17 HP damage)</option>
+                <option value="30">30 Blocks (Lethal fall — 27 HP damage)</option>
+                <option value="50">50 Blocks (Extreme fall — 47 HP damage)</option>
+              </select>
+            </div>
+            <div class="grid-2">
+              <div class="form-group">
+                <label>Landing Surface</label>
+                <select id="selArenaSurface">
+                  <option value="stone" selected>Stone (Requires Water Bucket)</option>
+                  <option value="water">Existing Water (Passive Safe)</option>
+                  <option value="hay_block">Hay Bale (80% Damage Cushion)</option>
+                  <option value="slime_block">Slime Block (100% Damage Bounce)</option>
+                  <option value="netherrack">Netherrack (Water Evaporation Test)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Dimension</label>
+                <select id="selArenaDimension">
+                  <option value="overworld" selected>Overworld</option>
+                  <option value="nether">The Nether (Water Evaporates!)</option>
+                  <option value="end">The End</option>
+                </select>
+              </div>
+            </div>
+            <button class="btn btn-emerald" style="width: 100%; justify-content: center;" onclick="runArenaDrill()">🚀 Run Test Arena Drill</button>
+            <div id="arenaOutputBox" style="margin-top: 12px; background: #0d1217; padding: 12px; border-radius: 8px; font-family: var(--font-mono); font-size: 11.5px; line-height: 1.5; min-height: 70px;">
+              <span style="color: var(--text-dim);">Ready for test drop. Select height and surface to test timing, placement, and recovery.</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Telemetry & Event History -->
+        <div class="card">
+          <div class="card-head"><span class="card-title">Recent Clutch Telemetry & Failure Audit</span></div>
+          <div id="clutchEventLog" style="font-family: var(--font-mono); font-size: 11.5px; display: flex; flex-direction: column; gap: 6px; max-height: 220px; overflow-y: auto;">
+            <div style="color: var(--text-dim);">No recent clutch events. Module standby.</div>
+          </div>
+        </div>
+      </section>
+
       <!-- PAGE: CAMPAIGNS & AUTONOMY -->
       <section class="page" id="page-campaigns">
         <div class="page-head">
@@ -1426,6 +1552,7 @@
         document.getElementById(pageId)?.classList.add("active");
 
         if (item.dataset.page === "combat") fetchCombatData();
+        if (item.dataset.page === "mlg-clutch") fetchClutchTelemetry();
         if (item.dataset.page === "campaigns") fetchCampaignsData();
         if (item.dataset.page === "world-travel") fetchWorldData();
         if (item.dataset.page === "transactions") fetchTransactionsData();
@@ -1519,6 +1646,11 @@
       // Hotbar & Inventory
       renderSlots(state.hotbar || [], "hotbarSlots", 9, state.activeSlot);
       renderSlots(state.inventory || [], "mainInvSlots", 27);
+
+      // MLG Clutch Update
+      if (state.clutch) {
+        updateClutchUI(state.clutch);
+      }
     }
 
     function renderSlots(items, containerId, count, activeIdx = -1) {
@@ -2199,6 +2331,175 @@
       }
       alert(`[Vision Analysis Snapshot Captured]\n${data.disclaimer}`);
     });
+
+    // ======================== MLG CLUTCH UI HANDLERS ========================
+    function updateClutchUI(c) {
+      if (!c) return;
+      const pill = document.getElementById("vitalClutchPill");
+      if (pill) {
+        if (c.isFalling) {
+          pill.style.display = "block";
+          pill.textContent = `🪂 FALLING (${c.fallDistance}m)`;
+        } else {
+          pill.style.display = "none";
+        }
+      }
+
+      const stateBadge = document.getElementById("clutchStateBadge");
+      if (stateBadge) {
+        stateBadge.textContent = c.state.toUpperCase();
+        stateBadge.className = `tag ${c.isFalling ? "tag-danger" : "tag-healthy"}`;
+      }
+
+      const statusText = document.getElementById("clutchStatusText");
+      if (statusText) {
+        statusText.textContent = c.isFalling ? `Falling (${c.fallDistance}m)` : (c.state === "landed" ? "Landed" : "Ground / Safe");
+      }
+
+      const metricsEl = document.getElementById("clutchFallMetrics");
+      if (metricsEl) {
+        metricsEl.textContent = `Velocity: ${c.verticalVelocity?.toFixed(2) ?? 0} m/s · Distance: ${c.fallDistance?.toFixed(1) ?? 0}m`;
+      }
+
+      const landEl = document.getElementById("clutchLandingTime");
+      if (landEl) {
+        landEl.textContent = `${c.estimatedLandingTimeMs} ms (${Math.round(c.estimatedLandingTimeMs / 50)} ticks)`;
+      }
+
+      const dmgEl = document.getElementById("clutchPredictedDamage");
+      if (dmgEl) {
+        dmgEl.textContent = `Predicted Dmg: ${c.predictedDamage} HP`;
+      }
+
+      const stratEl = document.getElementById("clutchStrategyText");
+      if (stratEl) {
+        stratEl.textContent = c.selectedStrategy || "none";
+      }
+
+      const surfEl = document.getElementById("clutchSurfaceText");
+      if (surfEl) {
+        surfEl.textContent = `Surface: ${c.surfaceBlockName || "air"} (Y: ${c.impactY})`;
+      }
+
+      if (c.stats) {
+        const rateBadge = document.getElementById("clutchRateBadge");
+        if (rateBadge) rateBadge.textContent = `${c.stats.successRate}%`;
+        const attemptsEl = document.getElementById("clutchStatsAttempts");
+        if (attemptsEl) {
+          attemptsEl.textContent = `${c.stats.totalAttempts} Attempts (${c.stats.successful}✓ / ${c.stats.partial || 0}△ / ${c.stats.failed || 0}✗)`;
+        }
+        const delayEl = document.getElementById("clutchAvgDelay");
+        if (delayEl) {
+          delayEl.textContent = `Avg Timing Offset: ${c.stats.avgPlacementDelayMs}ms`;
+        }
+      }
+
+      const itemsContainer = document.getElementById("clutchAvailableItems");
+      if (itemsContainer && c.availableItems) {
+        if (c.availableItems.length === 0) {
+          itemsContainer.innerHTML = '<span class="tag tag-danger">No Clutch Items in Inventory</span>';
+        } else {
+          itemsContainer.innerHTML = c.availableItems.map(item => `
+            <span class="tag tag-healthy" style="font-size: 11px;">
+              ${item.name.replace(/_/g, ' ').toUpperCase()}: <b>${item.count}</b>
+            </span>
+          `).join('');
+        }
+      }
+
+      if (c.lastClutchResult) {
+        const logContainer = document.getElementById("clutchEventLog");
+        if (logContainer) {
+          const r = c.lastClutchResult;
+          const statusColor = r.status === "SUCCESS" ? "var(--emerald)" : (r.status === "PARTIAL_SUCCESS" ? "#f59e0b" : "#ef4444");
+          logContainer.innerHTML = `
+            <div style="padding: 8px; background: rgba(255,255,255,0.02); border-left: 3px solid ${statusColor}; border-radius: 4px; margin-bottom: 4px;">
+              <b>${new Date(r.timestamp).toLocaleTimeString()}</b> — <span style="color:${statusColor}; font-weight:700;">${r.status}</span>
+              | Strategy: <b>${r.strategy}</b> | Height: <b>${r.fallHeight}m</b> | Dmg Taken: <b>${r.damageTaken} HP</b>
+              ${r.timingDeltaMs !== undefined ? `| Timing Offset: <b>${r.timingDeltaMs}ms</b>` : ''}
+              ${r.failureReason ? `| Failure: <span style="color:#ef4444">${r.failureReason}</span>` : ''}
+              ${r.recoveredWater ? ' | <i style="color:var(--emerald)">(Water Retrieved ✓)</i>' : ''}
+            </div>
+          `;
+        }
+      }
+    }
+
+    async function fetchClutchTelemetry() {
+      try {
+        const res = await fetch("/api/clutch/status", { headers: { "x-auth-token": authToken } });
+        const data = await res.json();
+        updateClutchUI(data);
+      } catch (e) {
+        console.error("Failed to fetch clutch telemetry:", e);
+      }
+    }
+
+    async function saveClutchMode() {
+      const mode = document.getElementById("selClutchMode").value;
+      await fetch("/api/clutch/mode", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-auth-token": authToken },
+        body: JSON.stringify({ mode })
+      });
+      fetchClutchTelemetry();
+    }
+
+    async function saveClutchConfig() {
+      const mode = document.getElementById("selClutchMode").value;
+      const distance = document.getElementById("numClutchDistance").value;
+      const timeMs = document.getElementById("numClutchTimeMs").value;
+      const autoRecover = document.getElementById("chkAutoRecoverWater").checked;
+      const airSteer = document.getElementById("chkAirSteering").checked;
+
+      await fetch("/api/clutch/mode", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-auth-token": authToken },
+        body: JSON.stringify({
+          mode,
+          triggerDistanceBlocks: distance,
+          triggerTimeMs: timeMs,
+          autoRecoverWater: autoRecover,
+          steerToNearbySafeSurfaces: airSteer
+        })
+      });
+      alert("MLG Clutch settings saved!");
+      fetchClutchTelemetry();
+    }
+
+    async function runArenaDrill() {
+      const height = document.getElementById("selArenaHeight").value;
+      const surface = document.getElementById("selArenaSurface").value;
+      const dimension = document.getElementById("selArenaDimension").value;
+      const outBox = document.getElementById("arenaOutputBox");
+
+      outBox.innerHTML = '<span style="color:var(--emerald)">⚡ Initiating test drop drill...</span>';
+
+      try {
+        const res = await fetch("/api/clutch/arena/test", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-auth-token": authToken },
+          body: JSON.stringify({ fallHeight: height, surfaceType: surface, dimension })
+        });
+        const data = await res.json();
+        const r = data.result;
+        const color = r.status === "SUCCESS" ? "var(--emerald)" : (r.status === "PARTIAL_SUCCESS" ? "#f59e0b" : "#ef4444");
+
+        outBox.innerHTML = `
+          <div style="font-weight:700; color:${color}; font-size:12px; margin-bottom:4px;">
+            DRILL RESULT: ${r.status} (${r.strategy.toUpperCase()})
+          </div>
+          <div>${data.timingSummary}</div>
+          <div>Fall Height: <b>${r.fallHeight}m</b> | Impact Velocity: <b>${r.verticalVelocity} m/s</b></div>
+          <div>Damage Taken: <b>${r.damageTaken} HP</b> ${r.damageTaken === 0 ? '✓ (No Damage)' : ''}</div>
+          ${r.recoveredWater ? '<div>Water Scoop-Back: <b style="color:var(--emerald)">Retrieved Successfully ✓</b></div>' : ''}
+          ${r.failureReason ? `<div style="color:#ef4444">Failure Cause: <b>${r.failureReason}</b></div>` : ''}
+        `;
+        fetchClutchTelemetry();
+      } catch (e) {
+        outBox.innerHTML = `<span style="color:#ef4444">Error running drill: ${e.message}</span>`;
+      }
+    }
 
     // Init
     checkAuth();

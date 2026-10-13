@@ -38,12 +38,14 @@ graph TD
 
     Coord --> Combat[PvP Combat Engine<br>7-State Machine & Weapon Timing]
     Coord --> Surv[Survival & Food Manager<br>1.21.x Metadata & 4-Tier Hierarchy]
+    Coord --> Clutch[MLG Clutch Engine<br>20 TPS Physics & Multi-Strategy]
     TaskMgr --> WorldInt[World Intelligence<br>Landmarks & Spatial Distance]
     TaskMgr --> Percept[Perception Layer<br>Snapshotting & Compression]
 
     Eng --> Bot[Mineflayer Bot Client<br>1.21.x Paper/Spigot]
     Combat --> Bot
     Surv --> Bot
+    Clutch --> Bot
     Manual --> Bot
     Percept --> Bot
     Viewer --> Bot
@@ -96,6 +98,15 @@ graph TD
 - **`survival-manager.ts`**:
   - Enforces 4-tier survival hierarchy (Critical, Combat Recovery, Routine Hunger, Long-term Prep).
   - Dynamic armor equipping and environmental hazard avoidance.
+- **`clutch-manager.ts`**:
+  - Deterministic 20 TPS physics tick evaluation for zero-latency reaction.
+  - Simulates 1.21.x terminal velocity, calculates ticks to impact, and predicts unmitigated damage.
+  - Multi-item strategy selection (water bucket, slime block, hay bale, cobweb, powder snow, totem).
+  - Nether evaporation guard banning water buckets in `the_nether` and falling back to cushions.
+  - Lateral air acceleration drift toward nearby safe water pools when items are unavailable.
+  - Automatic water bucket re-scoop upon landing to prevent arena flooding.
+  - Emergency Priority 1 ActionCoordinator lock preempting manual inputs and tasks.
+  - Configurable modes (Disabled, Practice, Survival Emergency) and built-in test arena.
 
 ### 2.5 World Intelligence, Campaigns & Travel (`src/engine/`)
 - **`world-intelligence.ts`**: Persistent spatial memory indexing landmarks, points of interest, resource sites, freshness TTL, and Euclidean distance sorting.

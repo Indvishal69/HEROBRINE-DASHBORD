@@ -10,6 +10,7 @@ import { manualControl } from "./manual-control.js";
 import { combatManager } from "../engine/combat-manager.js";
 import { actionCoordinator } from "../engine/action-coordinator.js";
 import { proactiveScheduler } from "../engine/proactive-scheduler.js";
+import { clutchManager } from "../engine/clutch-manager.js";
 import { AppSettingsRepo, AuditRepo } from "../storage/database.js";
 const { pathfinder, Movements } = pathfinderPackage;
 export class BotConnectionService {
@@ -74,6 +75,7 @@ export class BotConnectionService {
                 this.state = "connected";
                 this.lastError = null;
                 viewerManager.start(candidate);
+                clutchManager.attach(candidate);
                 this.startAutonomousLoop(candidate);
                 this.broadcastState();
                 AuditRepo.add({
@@ -147,6 +149,7 @@ export class BotConnectionService {
         }
         actionCoordinator.forceReleaseAll();
         combatManager.stopCombat("Bot disconnected");
+        clutchManager.detach();
         viewerManager.close();
         if (this.bot) {
             try {

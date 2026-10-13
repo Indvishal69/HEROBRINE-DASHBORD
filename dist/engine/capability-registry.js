@@ -163,6 +163,20 @@ export class CapabilityRegistry {
                 description: "High-speed Elytra gliding with firework rocketry",
                 minAutonomyLevel: 5,
                 limitations: ["Requires specialized client physics mod not supported in standard Mineflayer protocol"]
+            },
+            {
+                id: "mlg_clutch_fall_recovery",
+                name: "MLG Clutch & Fall-Recovery System",
+                category: "survival",
+                status: "implemented_tested",
+                description: "Deterministic 1.21.x terminal velocity simulation, water bucket clutch, hay/slime cushion, Nether restriction handling, and lateral air steering",
+                minAutonomyLevel: 2,
+                limitations: [
+                    "Network latency > 150ms or server lag may cause placement packet to arrive after damage calculation",
+                    "Non-flat surfaces (half-slabs, fences, torches) prevent valid water/block placement",
+                    "Water bucket placement is physically prohibited in the Nether due to spontaneous evaporation"
+                ],
+                lastTestedAt: Date.now()
             }
         ];
         for (const c of list) {

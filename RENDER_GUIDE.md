@@ -57,6 +57,8 @@ Render settings ke **"Environment Variables"** tab me ye add karein:
 | `MC_AUTH` | `offline` | Offline / Cracked / LAN mode |
 | `MC_USERNAME` | `AIBuddy` | Bot ka Minecraft username |
 | `NODE_VERSION` | `22` | Node.js version |
+| `GEMINI_API_KEY` | *(Optional)* | Aapki Google Gemini API Key |
+| `GROQ_API_KEY` | *(Optional)* | Aapki Groq LPU API Key |
 | `OPENROUTER_API_KEY` | *(Optional)* | Aapki OpenRouter API Key |
 
 ---
@@ -65,6 +67,32 @@ Render settings ke **"Environment Variables"** tab me ye add karein:
 - Neeche **"Create Web Service"** dabayein.
 - 1 se 2 minute me build complete ho jayega aur Render aapko ek live URL dega:
   `https://minecraft-ai-buddy-xxxx.onrender.com`
+
+---
+
+## 🔄 Render Par Latest Code Update Kaise Karein (2 Tarike):
+
+### Tarika 1: Automatic Update (Default)
+Render by default aapki GitHub repo ke `main` branch se connect hota hai:
+1. Humne latest code already GitHub par push kar diya hai (`main` branch).
+2. Render automatically new commit detect karke **Auto-Deploy** shuru kar deta hai.
+3. Render Dashboard par check karein: **"In progress"** ya **"Deploying..."** dikhega. 1-2 minute me deploy **"Live"** ho jayega!
+
+### Tarika 2: Manual Update (Agar Auto-Deploy off ho ya turant karna ho)
+1. [Render Dashboard](https://dashboard.render.com) open karein.
+2. Apni service (`minecraft-nexus-ai` ya `minecraft-ai-buddy`) par click karein.
+3. Top-Right corner me **"Manual Deploy"** button par click karein.
+4. **"Clear build cache & deploy"** select karein (Isse clean build banta hai).
+5. Render latest GitHub commit pull karke build start kar dega:
+   - Build logs me `npm install && npm run build` chalega.
+   - Status **"Live"** hote hi naya code (Gemini support, POV fix, etc.) live ho jayega!
+
+### 🔑 Render me Gemini Key Kaise Add Karein:
+1. Render service ke left menu me **"Environment"** par click karein.
+2. **"Add Environment Variable"** par click karein:
+   - **Key:** `GEMINI_API_KEY`
+   - **Value:** Apna Gemini API Key (`AIzaSy...`) paste karein.
+3. Neeche **"Save Changes"** dabayein. Render service ko automatically restart karke nayi key load kar lega!
 
 ---
 
@@ -82,3 +110,4 @@ Render settings ke **"Environment Variables"** tab me ye add karein:
 ## 💡 Important Render Free-Tier Tips:
 - **Sleep after 15 mins of inactivity:** Render ka free tier 15 minute bina traffic ke sleep par chala jata hai.
 - **24/7 Online rakhne ke liye:** Aap kisi free uptime monitoring service jaise [UptimeRobot](https://uptimerobot.com) ya [Cron-Job.org](https://cron-job.org) par apna Render URL (`https://your-app.onrender.com/api/auth/check`) har 5-10 minute me ping karwa sakte hain, jisse bot 24/7 server me online rahega!
+

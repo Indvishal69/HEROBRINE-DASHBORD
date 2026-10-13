@@ -55,15 +55,15 @@ export class PerceptionEngine {
         }));
         // Equipment
         const equipment = {
-            head: bot.inventory.slots[5]?.name || null,
-            torso: bot.inventory.slots[6]?.name || null,
-            legs: bot.inventory.slots[7]?.name || null,
-            feet: bot.inventory.slots[8]?.name || null,
-            offhand: bot.inventory.slots[45]?.name || null,
+            head: bot.inventory?.slots?.[5]?.name || null,
+            torso: bot.inventory?.slots?.[6]?.name || null,
+            legs: bot.inventory?.slots?.[7]?.name || null,
+            feet: bot.inventory?.slots?.[8]?.name || null,
+            offhand: bot.inventory?.slots?.[45]?.name || null,
             mainhand: bot.heldItem?.name || null
         };
         // Nearby Entities
-        const nearbyEntities = Object.values(bot.entities)
+        const nearbyEntities = Object.values(bot.entities || {})
             .filter((e) => e && e !== bot.entity && e.position && pos.distanceTo(e.position) <= 24)
             .slice(0, 25)
             .map((e) => {
@@ -84,8 +84,8 @@ export class PerceptionEngine {
         })
             .sort((a, b) => a.distance - b.distance);
         // Nearby Players
-        const nearbyPlayers = Object.entries(bot.players)
-            .filter(([name, p]) => name !== bot.username && p.entity)
+        const nearbyPlayers = Object.entries(bot.players || {})
+            .filter(([name, p]) => name !== bot.username && p?.entity)
             .map(([name, p]) => ({
             name,
             position: {
@@ -97,7 +97,7 @@ export class PerceptionEngine {
         }))
             .sort((a, b) => a.distance - b.distance);
         // Nearby Dropped Items
-        const nearbyDrops = Object.values(bot.entities)
+        const nearbyDrops = Object.values(bot.entities || {})
             .filter((e) => e && (e.name === "item" || e.type === "item" || e.objectType === "Item") && e.position && pos.distanceTo(e.position) <= 16)
             .slice(0, 15)
             .map((e) => ({
@@ -122,6 +122,7 @@ export class PerceptionEngine {
             vitals: {
                 health: bot.health ?? 20,
                 food: bot.food ?? 20,
+                saturation: bot.foodSaturation !== undefined ? bot.foodSaturation : bot.saturation,
                 oxygen: bot.oxygenLevel,
                 isAlive: (bot.health ?? 20) > 0,
                 isSleeping: Boolean(bot.isSleeping),

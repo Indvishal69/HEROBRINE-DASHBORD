@@ -21,11 +21,11 @@ export class SurvivalManager {
     /**
      * Main survival loop called by the bot connection
      */
-    async evaluate(bot) {
+    async evaluate(bot, force = false) {
         if (!bot || !bot.entity)
             return { actionTaken: null };
         const now = Date.now();
-        if (now - this.lastEvaluationTime < 1200)
+        if (!force && now - this.lastEvaluationTime < 1200)
             return { actionTaken: null };
         this.lastEvaluationTime = now;
         const config = foodManager.getConfig();
@@ -37,8 +37,7 @@ export class SurvivalManager {
         if (health <= config.emergencyHealthThreshold) {
             this.currentPriority = "A_CRITICAL";
             const emergencyAction = await this.handleCriticalSurvival(bot, health, foodLevel);
-            if (emergencyAction)
-                return { actionTaken: emergencyAction };
+            return { actionTaken: emergencyAction || `CRITICAL: Health at ${health}/20 requires immediate protection` };
         }
         // =========================================================================
         // PRIORITY B — Combat Recovery: In active combat and needing health/saturation
@@ -89,15 +88,15 @@ export class SurvivalManager {
         this.recoveryState = "ASSESSING";
         this.isRecovering = true;
         // Equip offhand shield immediately
-        const shield = bot.inventory.items().find((i) => i.name === "shield");
-        if (shield && bot.inventory.slots[45]?.name !== "shield") {
+        const shield = bot.inventory?.items()?.find((i) => i.name === "shield");
+        if (shield && bot.inventory?.slots?.[45]?.name !== "shield") {
             try {
                 await bot.equip(shield, "off-hand");
             }
             catch { }
         }
         // Check for nearby hostiles within 8 blocks
-        const hostileNear = Object.values(bot.entities).find((e) => {
+        const hostileNear = Object.values(bot.entities || {}).find((e) => {
             if (!e || e === bot.entity || !e.position)
                 return false;
             const dist = bot.entity.position.distanceTo(e.position);
@@ -150,6 +149,8 @@ export class SurvivalManager {
         };
     }
     async equipBestArmor(bot) {
+        if (!bot || !bot.inventory)
+            return null;
         const slots = [
             { name: "head", type: "helmet", slotIdx: 5 },
             { name: "torso", type: "chestplate", slotIdx: 6 },
@@ -157,9 +158,11 @@ export class SurvivalManager {
             { name: "feet", type: "boots", slotIdx: 8 }
         ];
         for (const piece of slots) {
-            const current = bot.inventory.slots[piece.slotIdx];
+            const current = bot.inventory.slots ? bot.inventory.slots[piece.slotIdx] : null;
             const currentScore = current ? (ARMOR_PRIORITY[current.name] || 0) : 0;
-            const candidates = bot.inventory.items().filter((i) => i.name.endsWith(piece.type));
+            const candidates = typeof bot.inventory.items === "function"
+                ? bot.inventory.items().filter((i) => i && i.name && i.name.endsWith(piece.type))
+                : [];
             let bestItem = current;
             let bestScore = currentScore;
             for (const cand of candidates) {
@@ -171,7 +174,9 @@ export class SurvivalManager {
             }
             if (bestItem && bestItem !== current) {
                 try {
-                    await bot.equip(bestItem, piece.name);
+                    if (typeof bot.equip === "function") {
+                        await bot.equip(bestItem, piece.name);
+                    }
                     return `Equipped better ${bestItem.name}`;
                 }
                 catch { }

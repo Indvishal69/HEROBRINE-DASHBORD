@@ -70,16 +70,16 @@ export class PerceptionEngine {
 
     // Equipment
     const equipment: EquipmentSnapshot = {
-      head: bot.inventory.slots[5]?.name || null,
-      torso: bot.inventory.slots[6]?.name || null,
-      legs: bot.inventory.slots[7]?.name || null,
-      feet: bot.inventory.slots[8]?.name || null,
-      offhand: bot.inventory.slots[45]?.name || null,
+      head: bot.inventory?.slots?.[5]?.name || null,
+      torso: bot.inventory?.slots?.[6]?.name || null,
+      legs: bot.inventory?.slots?.[7]?.name || null,
+      feet: bot.inventory?.slots?.[8]?.name || null,
+      offhand: bot.inventory?.slots?.[45]?.name || null,
       mainhand: bot.heldItem?.name || null
     };
 
     // Nearby Entities
-    const nearbyEntities: EntitySnapshot[] = Object.values(bot.entities)
+    const nearbyEntities: EntitySnapshot[] = Object.values(bot.entities || {})
       .filter((e) => e && e !== bot.entity && e.position && pos.distanceTo(e.position) <= 24)
       .slice(0, 25)
       .map((e) => {
@@ -103,8 +103,8 @@ export class PerceptionEngine {
       .sort((a, b) => a.distance - b.distance);
 
     // Nearby Players
-    const nearbyPlayers = Object.entries(bot.players)
-      .filter(([name, p]) => name !== bot.username && p.entity)
+    const nearbyPlayers = Object.entries(bot.players || {})
+      .filter(([name, p]) => name !== bot.username && p?.entity)
       .map(([name, p]) => ({
         name,
         position: {
@@ -117,7 +117,7 @@ export class PerceptionEngine {
       .sort((a, b) => a.distance - b.distance);
 
     // Nearby Dropped Items
-    const nearbyDrops: DroppedItemSnapshot[] = Object.values(bot.entities)
+    const nearbyDrops: DroppedItemSnapshot[] = Object.values(bot.entities || {})
       .filter((e) => e && ((e as any).name === "item" || (e as any).type === "item" || (e as any).objectType === "Item") && e.position && pos.distanceTo(e.position) <= 16)
       .slice(0, 15)
       .map((e) => ({
@@ -143,6 +143,7 @@ export class PerceptionEngine {
       vitals: {
         health: bot.health ?? 20,
         food: bot.food ?? 20,
+        saturation: (bot as any).foodSaturation !== undefined ? (bot as any).foodSaturation : (bot as any).saturation,
         oxygen: (bot as any).oxygenLevel,
         isAlive: (bot.health ?? 20) > 0,
         isSleeping: Boolean((bot as any).isSleeping),

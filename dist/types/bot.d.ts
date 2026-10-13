@@ -7,6 +7,7 @@ export interface BotCoordinates {
 export interface BotVitals {
     health: number;
     food: number;
+    saturation?: number;
     oxygen?: number;
     isAlive: boolean;
     isSleeping: boolean;

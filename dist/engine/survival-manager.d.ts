@@ -10,7 +10,7 @@ export declare class SurvivalManager {
     /**
      * Main survival loop called by the bot connection
      */
-    evaluate(bot: Bot): Promise<{
+    evaluate(bot: Bot, force?: boolean): Promise<{
         actionTaken: string | null;
     }>;
     /**

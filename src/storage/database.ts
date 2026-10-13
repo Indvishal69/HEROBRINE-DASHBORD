@@ -22,6 +22,7 @@ export function getDatabase(): DatabaseSync {
   // Enable WAL mode & foreign keys for concurrency & data integrity
   dbInstance.exec("PRAGMA journal_mode = WAL;");
   dbInstance.exec("PRAGMA foreign_keys = ON;");
+  dbInstance.exec("PRAGMA busy_timeout = 5000;");
 
   initSchema(dbInstance);
   return dbInstance;

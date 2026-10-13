@@ -14,6 +14,8 @@ export type TaskType =
   | "store" 
   | "retrieve" 
   | "guard" 
+  | "combat"
+  | "recovery"
   | "custom";
 
 export interface TaskCheckpoint {

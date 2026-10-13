@@ -24,7 +24,7 @@ export class BuildingEngine {
         }
         return { required, available, missing, canBuild };
     }
-    async constructBlueprint(bot, blueprint, origin, startStep = 0, onProgress) {
+    async constructBlueprint(bot, blueprint, origin, startStep = 0, onProgress, transactionId) {
         if (!bot || !bot.entity)
             throw new Error("Bot is offline.");
         // Sort blocks in bottom-up placement order (ascending Y)
@@ -82,6 +82,10 @@ export class BuildingEngine {
             }
             if (placed) {
                 placedCount++;
+                if (transactionId) {
+                    const { buildTransactionManager } = await import("./build-transactions.js");
+                    buildTransactionManager.recordChange(transactionId, targetPos.x, targetPos.y, targetPos.z, bot.game?.dimension || "overworld", existing?.name || "air", b.blockName);
+                }
                 onProgress?.(placedCount, total);
             }
             await new Promise((r) => setTimeout(r, 200));

@@ -1,4 +1,5 @@
 import type { Bot } from "mineflayer";
+import { actionCoordinator, ActionCoordinator } from "../engine/action-coordinator.js";
 
 export class ManualControlManager {
   private active = false;
@@ -10,8 +11,16 @@ export class ManualControlManager {
 
   public setManualActive(active: boolean, bot: Bot | null): void {
     this.active = active;
-    if (!active && bot) {
-      this.releaseAll(bot);
+    if (active) {
+      actionCoordinator.requestAction("manual_control", ActionCoordinator.PRIORITY_MANUAL, "all");
+      if (bot?.pathfinder) {
+        bot.pathfinder.setGoal(null);
+      }
+    } else {
+      actionCoordinator.releaseAction("manual_control");
+      if (bot) {
+        this.releaseAll(bot);
+      }
     }
   }
 

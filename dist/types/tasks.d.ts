@@ -1,6 +1,6 @@
 import type { BotCoordinates } from "./bot.js";
 export type TaskStatus = "pending" | "running" | "paused" | "completed" | "failed" | "cancelled";
-export type TaskType = "goto" | "follow" | "mine" | "harvest" | "build" | "repair" | "craft" | "smelt" | "store" | "retrieve" | "guard" | "custom";
+export type TaskType = "goto" | "follow" | "mine" | "harvest" | "build" | "repair" | "craft" | "smelt" | "store" | "retrieve" | "guard" | "combat" | "recovery" | "custom";
 export interface TaskCheckpoint {
     stepIndex: number;
     totalSteps: number;

@@ -1,3 +1,4 @@
+import { actionCoordinator, ActionCoordinator } from "../engine/action-coordinator.js";
 export class ManualControlManager {
     active = false;
     heldControls = new Set();
@@ -6,8 +7,17 @@ export class ManualControlManager {
     }
     setManualActive(active, bot) {
         this.active = active;
-        if (!active && bot) {
-            this.releaseAll(bot);
+        if (active) {
+            actionCoordinator.requestAction("manual_control", ActionCoordinator.PRIORITY_MANUAL, "all");
+            if (bot?.pathfinder) {
+                bot.pathfinder.setGoal(null);
+            }
+        }
+        else {
+            actionCoordinator.releaseAction("manual_control");
+            if (bot) {
+                this.releaseAll(bot);
+            }
         }
     }
     handleControlPress(bot, control, pressed) {

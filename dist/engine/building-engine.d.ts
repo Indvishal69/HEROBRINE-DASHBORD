@@ -14,7 +14,7 @@ export declare class BuildingEngine {
         x: number;
         y: number;
         z: number;
-    }, startStep?: number, onProgress?: (placed: number, total: number) => void): Promise<{
+    }, startStep?: number, onProgress?: (placed: number, total: number) => void, transactionId?: string): Promise<{
         placedCount: number;
         completed: boolean;
     }>;

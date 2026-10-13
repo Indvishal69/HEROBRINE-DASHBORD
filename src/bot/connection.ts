@@ -8,6 +8,9 @@ import { chatIntentParser } from "../ai/intent-parser.js";
 import { aiPool } from "../ai/provider-pool.js";
 import { perception } from "../engine/perception.js";
 import { manualControl } from "./manual-control.js";
+import { combatManager } from "../engine/combat-manager.js";
+import { actionCoordinator } from "../engine/action-coordinator.js";
+import { proactiveScheduler } from "../engine/proactive-scheduler.js";
 import { AppSettingsRepo, AuditRepo } from "../storage/database.js";
 import type { BotConnectionState } from "../types/bot.js";
 
@@ -171,6 +174,8 @@ export class BotConnectionService {
       clearInterval(this.autonomousLoopTimer);
       this.autonomousLoopTimer = null;
     }
+    actionCoordinator.forceReleaseAll();
+    combatManager.stopCombat("Bot disconnected");
     viewerManager.close();
     if (this.bot) {
       try {
@@ -208,12 +213,22 @@ export class BotConnectionService {
       // 1. Skip autonomous actions if user has manual control active
       if (manualControl.isManualActive()) return;
 
-      // 2. Evaluate survival priorities (eat, armor, hazards)
+      // 2. Tick combat manager (PVP / mob defense)
+      try {
+        await combatManager.tick(candidate);
+      } catch {}
+
+      // 3. Evaluate survival priorities (eat, armor, hazards)
       try {
         await survival.evaluate(candidate);
       } catch {}
 
-      // 3. Tick active hierarchical tasks
+      // 4. Tick proactive scheduler (food audits, etc.)
+      try {
+        proactiveScheduler.tick(candidate);
+      } catch {}
+
+      // 5. Tick active hierarchical tasks
       try {
         await taskManager.tick(candidate, this.broadcastCallback);
       } catch {}

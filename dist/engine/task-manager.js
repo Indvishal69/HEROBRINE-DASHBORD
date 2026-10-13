@@ -1,10 +1,14 @@
 import crypto from "node:crypto";
-import { TaskRepo, AuditRepo } from "../storage/database.js";
+import { TaskRepo, AuditRepo, BlueprintRepo } from "../storage/database.js";
 import { mining } from "./mining-manager.js";
 import { farming } from "./farming-manager.js";
 import { crafting } from "./crafting-manager.js";
 import { building } from "./building-engine.js";
-import { BlueprintRepo } from "../storage/database.js";
+import { buildTransactionManager } from "./build-transactions.js";
+import { autonomyManager } from "./autonomy-manager.js";
+import { multiAgentManager } from "./multi-agent.js";
+import { combatManager } from "./combat-manager.js";
+import { survival } from "./survival-manager.js";
 export class TaskManager {
     activeTask = null;
     isProcessing = false;
@@ -49,6 +53,7 @@ export class TaskManager {
         task.status = "cancelled";
         task.completedAt = Date.now();
         TaskRepo.upsert(task);
+        multiAgentManager.releaseTaskLease(id);
         AuditRepo.add({
             id: crypto.randomUUID(),
             timestamp: Date.now(),
@@ -65,6 +70,7 @@ export class TaskManager {
             this.shouldPauseCurrent = true;
             this.activeTask.status = "paused";
             TaskRepo.upsert(this.activeTask);
+            multiAgentManager.releaseTaskLease(id);
             return true;
         }
         return false;
@@ -86,12 +92,28 @@ export class TaskManager {
             const pendingTasks = TaskRepo.getAll()
                 .filter((t) => t.status === "pending")
                 .sort((a, b) => b.priority - a.priority || a.createdAt - b.createdAt);
-            if (pendingTasks.length > 0) {
-                this.activeTask = pendingTasks[0];
+            for (const candidate of pendingTasks) {
+                // 1. Check Autonomy Gate
+                const canExecute = autonomyManager.canExecute(candidate.type, candidate.requestedBy);
+                if (!canExecute.permitted) {
+                    candidate.status = "failed";
+                    candidate.error = canExecute.reason || "Action blocked by autonomy restrictions";
+                    candidate.completedAt = Date.now();
+                    TaskRepo.upsert(candidate);
+                    onBroadcast?.("task:failed", candidate);
+                    continue;
+                }
+                // 2. Multi-Agent Task Lease Check
+                const lease = multiAgentManager.acquireTaskLease(candidate.id);
+                if (!lease.acquired) {
+                    continue; // Currently leased to another bot instance
+                }
+                this.activeTask = candidate;
                 this.activeTask.status = "running";
                 this.activeTask.startedAt = Date.now();
                 TaskRepo.upsert(this.activeTask);
                 onBroadcast?.("task:started", this.activeTask);
+                break;
             }
         }
         if (!this.activeTask)
@@ -124,6 +146,7 @@ export class TaskManager {
             onBroadcast?.("task:failed", task);
         }
         finally {
+            multiAgentManager.releaseTaskLease(task.id);
             this.activeTask = null;
             this.isProcessing = false;
         }
@@ -151,7 +174,7 @@ export class TaskManager {
             }
             case "harvest": {
                 const replant = Boolean(task.params.replant ?? true);
-                const res = await farming.harvestAndReplant(bot, 16, replant, (harvested) => {
+                await farming.harvestAndReplant(bot, 16, replant, (harvested) => {
                     updateProgress(harvested, 20);
                 });
                 break;
@@ -173,10 +196,17 @@ export class TaskManager {
                     y: Math.floor(bot.entity.position.y),
                     z: Math.floor(bot.entity.position.z) + 2
                 };
+                const tx = buildTransactionManager.startTransaction(task.requestedBy, origin, bp.id, bp.name);
                 const startStep = task.checkpoint?.stepIndex || 0;
-                await building.constructBlueprint(bot, bp, origin, startStep, (placed, total) => {
-                    updateProgress(placed, total);
-                });
+                try {
+                    await building.constructBlueprint(bot, bp, origin, startStep, (placed, total) => {
+                        updateProgress(placed, total);
+                    }, tx.id);
+                    buildTransactionManager.commitTransaction(tx.id);
+                }
+                catch (err) {
+                    throw err;
+                }
                 break;
             }
             case "follow": {
@@ -203,6 +233,19 @@ export class TaskManager {
                     const { goals } = await import("mineflayer-pathfinder");
                     await bot.pathfinder.goto(new goals.GoalNear(target[1].entity.position.x, target[1].entity.position.y, target[1].entity.position.z, 2));
                 }
+                break;
+            }
+            case "combat": {
+                const opponent = String(task.params.target || "");
+                const res = combatManager.startApprovedDuel(opponent);
+                if (!res.success)
+                    throw new Error(res.message);
+                break;
+            }
+            case "recovery": {
+                const recRes = await survival.triggerEmergencyRecovery(bot);
+                if (!recRes.success)
+                    throw new Error(recRes.message);
                 break;
             }
             default:

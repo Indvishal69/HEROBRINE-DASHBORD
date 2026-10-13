@@ -15,6 +15,19 @@ import { CredentialRepo, TaskRepo, BlueprintRepo, LandmarkRepo, PermissionRepo, 
 import { storage } from "../engine/storage-manager.js";
 import { farming } from "../engine/farming-manager.js";
 import { mining } from "../engine/mining-manager.js";
+import { combatManager } from "../engine/combat-manager.js";
+import { foodManager } from "../engine/food-manager.js";
+import { survival } from "../engine/survival-manager.js";
+import { autonomyManager } from "../engine/autonomy-manager.js";
+import { capabilityRegistry } from "../engine/capability-registry.js";
+import { worldIntelligence } from "../engine/world-intelligence.js";
+import { campaignPlanner } from "../engine/campaign-planner.js";
+import { travelPlanner } from "../engine/travel-planner.js";
+import { economyManager } from "../engine/economy-manager.js";
+import { visionAdapter } from "../engine/vision-adapter.js";
+import { buildTransactionManager } from "../engine/build-transactions.js";
+import { eventTimeline } from "../engine/event-timeline.js";
+import { chatIntentParser } from "../ai/intent-parser.js";
 const DASHBOARD_PASSWORD = process.env.DASHBOARD_PASSWORD || "buddy123";
 export function startServer(port) {
     const app = express();
@@ -322,6 +335,158 @@ export function startServer(port) {
         catch (e) {
             res.status(400).json({ error: e instanceof Error ? e.message : String(e) });
         }
+    });
+    // ======================== COMBAT & PVP ROUTES ========================
+    app.get("/api/combat/status", requireAuth, (req, res) => {
+        res.json(combatManager.getSnapshot(botService.getBot()));
+    });
+    app.get("/api/combat/config", requireAuth, (req, res) => {
+        res.json(combatManager.getConfig());
+    });
+    app.post("/api/combat/config", requireAuth, (req, res) => {
+        res.json(combatManager.saveConfig(req.body));
+    });
+    app.post("/api/combat/start-duel", requireAuth, (req, res) => {
+        const opponent = String(req.body.opponent || "").trim();
+        if (!opponent)
+            return res.status(400).json({ error: "Opponent username is required." });
+        res.json(combatManager.startApprovedDuel(opponent));
+    });
+    app.post("/api/combat/stop", requireAuth, (req, res) => {
+        combatManager.stopCombat(String(req.body.reason || "Manual dashboard stop"));
+        res.json({ success: true, message: "Combat disengaged." });
+    });
+    app.post("/api/combat/retreat", requireAuth, (req, res) => {
+        combatManager.triggerEmergencyRetreat(botService.getBot(), String(req.body.reason || "Dashboard emergency retreat"));
+        res.json({ success: true, message: "Emergency retreat triggered." });
+    });
+    app.get("/api/combat/logs", requireAuth, (req, res) => {
+        res.json(combatManager.getCombatLogs());
+    });
+    // ======================== SURVIVAL & SMART FOOD ROUTES ========================
+    app.get("/api/survival/status", requireAuth, (req, res) => {
+        res.json(survival.getSnapshot(botService.getBot()));
+    });
+    app.get("/api/survival/config", requireAuth, (req, res) => {
+        res.json(foodManager.getConfig());
+    });
+    app.post("/api/survival/config", requireAuth, (req, res) => {
+        res.json(foodManager.saveConfig(req.body));
+    });
+    app.post("/api/survival/eat-now", requireAuth, async (req, res) => {
+        const b = botService.getBot();
+        if (!b)
+            return res.status(400).json({ error: "Bot is offline." });
+        try {
+            const eatRes = await foodManager.executeEat(b, true, "C_ROUTINE_HUNGER");
+            res.json(eatRes);
+        }
+        catch (e) {
+            res.status(400).json({ error: e instanceof Error ? e.message : String(e) });
+        }
+    });
+    app.post("/api/survival/emergency-recovery", requireAuth, async (req, res) => {
+        const b = botService.getBot();
+        const result = await survival.triggerEmergencyRecovery(b);
+        res.json(result);
+    });
+    app.get("/api/survival/forecast", requireAuth, (req, res) => {
+        const minutes = Number(req.query.minutes || 20);
+        res.json(foodManager.forecastFoodSupply(botService.getBot(), minutes));
+    });
+    app.get("/api/survival/logs", requireAuth, (req, res) => {
+        res.json(foodManager.getFoodLogs());
+    });
+    // ======================== AUTONOMY & CAPABILITY ROUTES ========================
+    app.get("/api/autonomy/config", requireAuth, (req, res) => {
+        res.json(autonomyManager.getConfig());
+    });
+    app.post("/api/autonomy/config", requireAuth, (req, res) => {
+        res.json(autonomyManager.saveConfig(req.body));
+    });
+    app.post("/api/autonomy/level", requireAuth, (req, res) => {
+        const level = Number(req.body.level);
+        res.json(autonomyManager.setLevel(level));
+    });
+    app.get("/api/capabilities", requireAuth, (req, res) => {
+        res.json(capabilityRegistry.getAll());
+    });
+    // ======================== WORLD INTELLIGENCE & TRAVEL ROUTES ========================
+    app.get("/api/world/snapshot", requireAuth, (req, res) => {
+        const dim = botService.getBot()?.game?.dimension || "overworld";
+        res.json(worldIntelligence.getSnapshot(dim));
+    });
+    app.get("/api/world/landmarks", requireAuth, (req, res) => {
+        res.json(worldIntelligence.getLandmarks(req.query.includeStale !== "true"));
+    });
+    app.post("/api/world/landmarks", requireAuth, (req, res) => {
+        const lm = worldIntelligence.recordLandmark(req.body.name, req.body.category, req.body.position, req.body.dimension, "player_reported", req.body.ttlMs, req.body.metadata);
+        res.json(lm);
+    });
+    app.post("/api/travel/checklist", requireAuth, (req, res) => {
+        res.json(travelPlanner.checkTravelReadiness(botService.getBot(), req.body.targetPos, req.body.targetDimension));
+    });
+    // ======================== CAMPAIGN PLANNER ROUTES ========================
+    app.get("/api/campaigns", requireAuth, (req, res) => {
+        res.json(campaignPlanner.getAll());
+    });
+    app.post("/api/campaigns", requireAuth, (req, res) => {
+        res.json(campaignPlanner.createCampaign(req.body.title, req.body.description, req.body.category, req.body.stages));
+    });
+    app.post("/api/campaigns/:id/start", requireAuth, (req, res) => {
+        res.json({ success: campaignPlanner.startCampaign(String(req.params.id)) });
+    });
+    app.post("/api/campaigns/:id/pause", requireAuth, (req, res) => {
+        res.json({ success: campaignPlanner.pauseCampaign(String(req.params.id)) });
+    });
+    app.post("/api/campaigns/:id/cancel", requireAuth, (req, res) => {
+        res.json({ success: campaignPlanner.cancelCampaign(String(req.params.id)) });
+    });
+    app.post("/api/campaigns/:id/advance", requireAuth, (req, res) => {
+        res.json({ success: campaignPlanner.advanceStage(String(req.params.id), req.body.evidence) });
+    });
+    // ======================== ECONOMY & VILLAGER ROUTES ========================
+    app.get("/api/economy/villagers", requireAuth, (req, res) => {
+        res.json(economyManager.discoverNearbyVillagers(botService.getBot()));
+    });
+    app.post("/api/economy/validate-trade", requireAuth, (req, res) => {
+        const b = botService.getBot();
+        if (!b)
+            return res.status(400).json({ error: "Bot is offline." });
+        res.json(economyManager.validateTradeFeasibility(b, req.body.offer));
+    });
+    // ======================== VISION & VOICE ROUTES ========================
+    app.get("/api/vision/capture", requireAuth, async (req, res) => {
+        const out = await visionAdapter.captureScene(botService.getBot());
+        res.json(out);
+    });
+    app.post("/api/voice/command", requireAuth, (req, res) => {
+        const transcript = String(req.body.transcript || "").trim();
+        if (!transcript)
+            return res.status(400).json({ error: "Voice transcript cannot be empty." });
+        const intent = chatIntentParser.parse("voice_operator", transcript);
+        if (intent.isCommand) {
+            const task = taskManager.createTask(intent.type, intent.title, intent.params, "voice_operator");
+            return res.json({ success: true, transcript, intent, task });
+        }
+        res.json({ success: true, transcript, intent });
+    });
+    // ======================== BUILD TRANSACTIONS & ROLLBACK ========================
+    app.get("/api/transactions", requireAuth, (req, res) => {
+        res.json(buildTransactionManager.getAll());
+    });
+    app.post("/api/transactions/:id/rollback", requireAuth, async (req, res) => {
+        const result = await buildTransactionManager.rollbackTransaction(botService.getBot(), String(req.params.id));
+        res.json(result);
+    });
+    // ======================== EVENT TIMELINE & SANITIZED EXPORT ========================
+    app.get("/api/timeline", requireAuth, (req, res) => {
+        res.json(eventTimeline.getEvents(req.query.category, Number(req.query.limit || 50)));
+    });
+    app.get("/api/timeline/export", requireAuth, (req, res) => {
+        res.setHeader("Content-Disposition", "attachment; filename=nexus_diagnostics.json");
+        res.setHeader("Content-Type", "application/json");
+        res.send(eventTimeline.exportSanitizedDiagnostics());
     });
     // WebSocket upgrade proxy for 3D viewer
     webServer.on("upgrade", (req, clientSocket, head) => {

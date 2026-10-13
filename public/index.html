@@ -562,6 +562,10 @@
     <nav class="nav-list" id="navList">
       <a class="nav-item active" data-page="overview"><span class="nav-icon">📊</span> Overview</a>
       <a class="nav-item" data-page="viewer"><span class="nav-icon">👁️</span> Live Bot POV</a>
+      <a class="nav-item" data-page="combat"><span class="nav-icon">⚔️</span> Combat & Survival</a>
+      <a class="nav-item" data-page="campaigns"><span class="nav-icon">🗺️</span> Campaigns & Autonomy</a>
+      <a class="nav-item" data-page="world-travel"><span class="nav-icon">🧭</span> World & Travel</a>
+      <a class="nav-item" data-page="transactions"><span class="nav-icon">🔄</span> Replay & Rollbacks</a>
       <a class="nav-item" data-page="ai-brain"><span class="nav-icon">🧠</span> AI Brain</a>
       <a class="nav-item" data-page="chat"><span class="nav-icon">💬</span> Chat & Intents</a>
       <a class="nav-item" data-page="tasks"><span class="nav-icon">⚡</span> Task Engine</a>
@@ -589,12 +593,15 @@
         <div class="vitals-bar" id="vitalsBar">
           <div class="vital-unit">❤️ <span id="vitalHealth">20</span>/20</div>
           <div class="vital-unit">🍗 <span id="vitalFood">20</span>/20</div>
+          <div class="vital-unit">🍖 Sat: <span id="vitalSat">5</span></div>
           <div class="vital-unit">🧭 <span id="vitalCoords">X:0 Y:64 Z:0</span></div>
           <div class="vital-unit">🌍 <span id="vitalDim">overworld</span></div>
         </div>
       </div>
-      <div class="topbar-right">
-        <button class="btn btn-emerald" id="btnConnectBot">⚡ Connect Bot</button>
+      <div class="topbar-right" style="display: flex; gap: 8px; align-items: center;">
+        <button class="btn btn-dark" id="btnVoicePTT" style="padding: 6px 12px; font-size: 11.5px;" title="Push to talk (Speech Recognition)">🎙️ Voice PTT</button>
+        <button class="btn btn-dark" id="btnCaptureVision" style="padding: 6px 12px; font-size: 11.5px;" title="Capture on-demand vision screenshot">📷 Vision</button>
+        <button class="btn btn-emerald" id="btnConnectBot">⚡ Connect</button>
         <button class="btn btn-danger" id="btnDisconnectBot">Disconnect</button>
       </div>
     </header>
@@ -1073,7 +1080,280 @@
         </div>
       </section>
 
-    </div>
+      <!-- PAGE: COMBAT & SURVIVAL -->
+      <section class="page" id="page-combat">
+        <div class="page-head">
+          <div>
+            <h1 class="page-title">⚔️ Combat & Smart Survival AI</h1>
+            <p class="page-subtitle">Deterministic 7-state PvP engine, weapon attack timing, and 10-step intelligent food scoring.</p>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn btn-danger" onclick="retreatCombat()">🚨 Emergency Retreat</button>
+            <button class="btn btn-dark" onclick="stopCombat()">🛑 Disengage</button>
+          </div>
+        </div>
+
+        <div class="grid-4">
+          <div class="card">
+            <div class="card-head"><span class="card-title">Combat Mode</span><span class="tag tag-offline" id="combatStateBadge">IDLE</span></div>
+            <div class="card-value" id="combatModeText">Disabled</div>
+            <div class="card-desc">PvP disabled by default for safety</div>
+          </div>
+          <div class="card">
+            <div class="card-head"><span class="card-title">Target Opponent</span></div>
+            <div class="card-value" id="combatTargetText" style="font-size: 16px;">None</div>
+            <div class="card-desc" id="combatTargetDist">Strict allowlist enforced</div>
+          </div>
+          <div class="card">
+            <div class="card-head"><span class="card-title">Selected Weapon</span></div>
+            <div class="card-value" id="combatWeaponText" style="font-size: 16px;">None</div>
+            <div class="card-desc" id="combatWeaponDur">Shield: Ready</div>
+          </div>
+          <div class="card">
+            <div class="card-head"><span class="card-title">Survival Priority</span><span class="tag tag-healthy" id="survivalPriorityBadge">NORMAL</span></div>
+            <div class="card-value" id="survivalActionOwner" style="font-size: 16px;">Action Scheduler</div>
+            <div class="card-desc">Authoritative lock active</div>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <!-- Combat Controls -->
+          <div class="card">
+            <div class="card-head"><span class="card-title">PvP Combat Authorization</span></div>
+            <div style="display: flex; gap: 12px; margin-bottom: 14px; align-items: center;">
+              <label style="margin: 0; display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                <input type="checkbox" id="chkEnablePvP" style="width: auto;" onchange="updatePvPConfig()"> Enable PvP Attacks
+              </label>
+              <select id="selCombatMode" style="width: auto; flex: 1;" onchange="updatePvPConfig()">
+                <option value="disabled">Disabled (No PvP)</option>
+                <option value="defensive">Defensive (React to threats)</option>
+                <option value="approved_duel">Approved Duel (Single Opponent)</option>
+                <option value="owner_authorized">Owner-Authorized Targets</option>
+                <option value="practice">Practice Mode</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Approved Duel Opponent</label>
+              <div style="display: flex; gap: 8px;">
+                <input type="text" id="txtDuelOpponent" placeholder="Player username...">
+                <button class="btn btn-emerald" onclick="startDuel()">Start Duel</button>
+              </div>
+            </div>
+            <div style="font-size: 11px; color: var(--text-dim); line-height: 1.5;">
+              Safety Guarantee: Chat messages cannot bypass target permissions. The bot will strictly ignore unapproved targets and immediately retreat if health ≤ 7.
+            </div>
+          </div>
+
+          <!-- Smart Food & Hunger Controls -->
+          <div class="card">
+            <div class="card-head"><span class="card-title">Smart Food & Recovery</span></div>
+            <div style="display: flex; gap: 8px; margin-bottom: 14px;">
+              <button class="btn btn-emerald" onclick="triggerAutoEat()">🍗 Eat Optimal Food</button>
+              <button class="btn btn-dark" onclick="triggerEmergencyRecovery()">🏥 Emergency Recovery</button>
+              <button class="btn btn-dark" onclick="calculateFoodForecast()">📊 Food Forecast</button>
+            </div>
+            <div id="foodForecastBox" style="font-size: 11px; font-family: var(--font-mono); color: var(--text-muted); background: #0d1217; padding: 10px; border-radius: 6px; margin-bottom: 12px;">
+              Forecast: Analyzing 20-minute survival reserve...
+            </div>
+            <div style="font-size: 11px; color: var(--text-muted);">
+              Scoring evaluates hunger points, saturation ratio, inventory quantity, negative penalties (rotten flesh banned), and preserves golden apples from routine consumption.
+            </div>
+          </div>
+        </div>
+
+        <!-- Event Log -->
+        <div class="card">
+          <div class="card-head"><span class="card-title">Combat & Survival Telemetry Log</span></div>
+          <div id="combatLogList" style="font-family: var(--font-mono); font-size: 11.5px; display: flex; flex-direction: column; gap: 4px; max-height: 200px; overflow-y: auto;">
+            <div style="color: var(--text-dim);">No recent combat events. System healthy.</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- PAGE: CAMPAIGNS & AUTONOMY -->
+      <section class="page" id="page-campaigns">
+        <div class="page-head">
+          <div>
+            <h1 class="page-title">🗺️ Campaigns & Autonomy Governor</h1>
+            <p class="page-subtitle">Configure agent autonomy levels (0 to 5) and supervise long-horizon multi-stage survival campaigns.</p>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <!-- Autonomy Level Selector -->
+          <div class="card">
+            <div class="card-head"><span class="card-title">Autonomy Level Configuration</span></div>
+            <div class="form-group">
+              <label>Select Autonomy Level</label>
+              <select id="selAutonomyLevel" onchange="changeAutonomyLevel()">
+                <option value="0">LEVEL 0 — OBSERVE (Passive observation, no world modifications)</option>
+                <option value="1">LEVEL 1 — ASSIST (Low-risk tasks only on explicit player request)</option>
+                <option value="2">LEVEL 2 — AUTONOMOUS SURVIVAL (Manages food, armor, routine self-preservation)</option>
+                <option value="3">LEVEL 3 — AUTONOMOUS PROJECTS (Mines, farms, constructs blueprints)</option>
+                <option value="4" selected>LEVEL 4 — ADVANCED SMP COMPANION (Campaigns, exploration, recovery)</option>
+                <option value="5">LEVEL 5 — OWNER-CONFIGURED EXPERT (Boss prep, nether travel, approved PvP)</option>
+              </select>
+            </div>
+            <div id="autonomyLevelDesc" style="font-size: 12px; color: var(--text-muted); line-height: 1.6; margin-bottom: 12px; background: #0d1217; padding: 12px; border-radius: 8px;">
+              LEVEL 4: Autonomous multi-stage campaigns, crop cycles, storage management, and chat responses permitted. High-risk PvP requires Level 5.
+            </div>
+          </div>
+
+          <!-- Personality & Quiet Hours -->
+          <div class="card">
+            <div class="card-head"><span class="card-title">Schedule & Quiet Hours</span></div>
+            <div class="grid-2">
+              <div class="form-group">
+                <label>Quiet Hours (Start - End)</label>
+                <input type="text" id="txtQuietHours" value="23:00 - 07:00" placeholder="e.g. 23:00 - 07:00">
+              </div>
+              <div class="form-group">
+                <label>Max Unattended Hours</label>
+                <input type="number" id="numMaxUnattended" value="8">
+              </div>
+            </div>
+            <p style="font-size: 11px; color: var(--text-dim);">
+              During quiet hours, all background proactive jobs are automatically suspended. Survival recovery remains active.
+            </p>
+          </div>
+        </div>
+
+        <!-- Active Campaigns -->
+        <div class="card">
+          <div class="card-head">
+            <span class="card-title">Long-Horizon Survival Campaigns</span>
+            <button class="btn btn-emerald" style="padding: 4px 10px; font-size: 11px;" onclick="fetchCampaigns()">Refresh Campaigns</button>
+          </div>
+          <div id="campaignListContainer" style="display: flex; flex-direction: column; gap: 12px;">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+
+        <!-- Capability Registry -->
+        <div class="card">
+          <div class="card-head"><span class="card-title">Central Feature Capability Registry</span></div>
+          <table class="table">
+            <thead>
+              <tr><th>Capability</th><th>Category</th><th>Status</th><th>Min Autonomy</th><th>Limitations</th></tr>
+            </thead>
+            <tbody id="capabilityTableBody">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- PAGE: WORLD & TRAVEL -->
+      <section class="page" id="page-world-travel">
+        <div class="page-head">
+          <div>
+            <h1 class="page-title">🧭 World Intelligence & Travel Planner</h1>
+            <p class="page-subtitle">Persistent spatial memory, verified homes/mines, travel cost estimates, and Nether coordinate conversion.</p>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <!-- Travel Readiness Calculator -->
+          <div class="card">
+            <div class="card-head"><span class="card-title">Travel Readiness Checklist</span></div>
+            <div class="form-group">
+              <label>Target Coordinates (X, Y, Z) & Dimension</label>
+              <div style="display: flex; gap: 8px;">
+                <input type="number" id="travelTargetX" placeholder="X" value="100">
+                <input type="number" id="travelTargetY" placeholder="Y" value="64">
+                <input type="number" id="travelTargetZ" placeholder="Z" value="100">
+                <select id="travelTargetDim" style="width: 140px;">
+                  <option value="overworld">Overworld</option>
+                  <option value="the_nether">The Nether</option>
+                  <option value="the_end">The End</option>
+                </select>
+              </div>
+            </div>
+            <button class="btn btn-emerald" onclick="evaluateTravelReadiness()">Evaluate Travel Checklist</button>
+            <div id="travelChecklistResults" style="margin-top: 14px; font-size: 11.5px; font-family: var(--font-mono); display: flex; flex-direction: column; gap: 6px;">
+              <div style="color: var(--text-dim);">Enter target coordinates and click evaluate to verify food, armor, and routes.</div>
+            </div>
+          </div>
+
+          <!-- Add Landmark -->
+          <div class="card">
+            <div class="card-head"><span class="card-title">+ Record New Landmark</span></div>
+            <div class="form-group">
+              <label>Landmark Name & Category</label>
+              <div style="display: flex; gap: 8px;">
+                <input type="text" id="lmNewName" placeholder="e.g. Iron Mine Alpha">
+                <select id="lmNewCategory" style="width: 140px;">
+                  <option value="home">Home / Base</option>
+                  <option value="mine">Mine Site</option>
+                  <option value="farm">Farm</option>
+                  <option value="chest">Storage Vault</option>
+                  <option value="portal">Nether Portal</option>
+                  <option value="village">Village</option>
+                  <option value="hazard">Hazard Zone</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Coordinates (X, Y, Z)</label>
+              <div style="display: flex; gap: 8px;">
+                <input type="number" id="lmNewX" placeholder="X">
+                <input type="number" id="lmNewY" placeholder="Y" value="64">
+                <input type="number" id="lmNewZ" placeholder="Z">
+              </div>
+            </div>
+            <button class="btn btn-emerald" onclick="submitNewLandmark()">Save Landmark to Memory</button>
+          </div>
+        </div>
+
+        <!-- Landmarks Table -->
+        <div class="card">
+          <div class="card-head"><span class="card-title">World Landmarks Registry (Freshness & Confidence)</span></div>
+          <table class="table">
+            <thead>
+              <tr><th>Name</th><th>Category</th><th>Coordinates</th><th>Dimension</th><th>Confidence</th><th>Status</th></tr>
+            </thead>
+            <tbody id="worldLandmarksTableBody">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- PAGE: TRANSACTIONS & REPLAY -->
+      <section class="page" id="page-transactions">
+        <div class="page-head">
+          <div>
+            <h1 class="page-title">🔄 Replay & Reversible Transactions</h1>
+            <p class="page-subtitle">Inspect construction transaction journals, execute conflict-safe rollbacks, and export sanitized diagnostics.</p>
+          </div>
+          <div>
+            <a href="/api/timeline/export" download="nexus_diagnostics.json" class="btn btn-emerald">📥 Export Sanitized Diagnostics</a>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <!-- Build Transactions -->
+          <div class="card">
+            <div class="card-head"><span class="card-title">Construction Transaction Journal</span></div>
+            <table class="table">
+              <thead>
+                <tr><th>ID</th><th>Blueprint</th><th>Author</th><th>Blocks</th><th>Status</th><th>Action</th></tr>
+              </thead>
+              <tbody id="transactionsTableBody">
+                <!-- Dynamically populated -->
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Event Timeline -->
+          <div class="card">
+            <div class="card-head"><span class="card-title">Event Timeline (Decisions & Results)</span></div>
+            <div id="timelineContainer" style="font-family: var(--font-mono); font-size: 11px; display: flex; flex-direction: column; gap: 6px; max-height: 400px; overflow-y: auto;">
+              <!-- Dynamically populated -->
+            </div>
+          </div>
+        </div>
+      </section>
   </main>
 
   <!-- MODAL: ADD API CREDENTIAL -->
@@ -1145,6 +1425,10 @@
         const pageId = `page-${item.dataset.page}`;
         document.getElementById(pageId)?.classList.add("active");
 
+        if (item.dataset.page === "combat") fetchCombatData();
+        if (item.dataset.page === "campaigns") fetchCampaignsData();
+        if (item.dataset.page === "world-travel") fetchWorldData();
+        if (item.dataset.page === "transactions") fetchTransactionsData();
         if (item.dataset.page === "providers") fetchKeyPool();
         if (item.dataset.page === "tasks") fetchTasks();
         if (item.dataset.page === "builder") fetchBlueprints();
@@ -1219,6 +1503,8 @@
       // Vitals
       document.getElementById("vitalHealth").textContent = state.vitals?.health ?? 20;
       document.getElementById("vitalFood").textContent = state.vitals?.food ?? 20;
+      const satEl = document.getElementById("vitalSat");
+      if (satEl) satEl.textContent = state.vitals?.saturation ?? 5;
       const coords = `X:${state.position?.x ?? 0} Y:${state.position?.y ?? 0} Z:${state.position?.z ?? 0}`;
       document.getElementById("vitalCoords").textContent = coords;
       document.getElementById("vitalDim").textContent = state.dimension || "overworld";
@@ -1549,6 +1835,369 @@
         body: JSON.stringify(config)
       });
       alert("Minecraft server connection settings saved!");
+    });
+
+    // ======================== COMBAT & SURVIVAL ========================
+    async function fetchCombatData() {
+      try {
+        const [combRes, survRes, logsRes] = await Promise.all([
+          fetch("/api/combat/status", { headers: { "x-auth-token": authToken } }),
+          fetch("/api/survival/status", { headers: { "x-auth-token": authToken } }),
+          fetch("/api/combat/logs", { headers: { "x-auth-token": authToken } })
+        ]);
+        const comb = await combRes.json();
+        const surv = await survRes.json();
+        const logs = await logsRes.json();
+
+        document.getElementById("combatStateBadge").textContent = comb.state;
+        document.getElementById("combatStateBadge").className = `tag tag-${comb.enabled ? 'healthy' : 'offline'}`;
+        document.getElementById("combatModeText").textContent = comb.mode.toUpperCase();
+        document.getElementById("chkEnablePvP").checked = comb.enabled;
+        document.getElementById("selCombatMode").value = comb.mode;
+        document.getElementById("combatTargetText").textContent = comb.target?.username || "None";
+        document.getElementById("combatTargetDist").textContent = comb.target ? `Distance: ${comb.target.distance?.toFixed(1)}m` : "Strict allowlist enforced";
+        document.getElementById("combatWeaponText").textContent = comb.selectedWeapon || "None";
+        document.getElementById("combatWeaponDur").textContent = comb.weaponDurability ? `Durability: ${comb.weaponDurability.current}/${comb.weaponDurability.max}` : "Shield: Ready";
+        document.getElementById("survivalActionOwner").textContent = surv.actionOwner || "Action Scheduler";
+
+        const listEl = document.getElementById("combatLogList");
+        if (listEl && logs && logs.length > 0) {
+          listEl.innerHTML = logs.map(l => `<div>[${new Date(l.timestamp).toLocaleTimeString()}] <span style="color:var(--emerald);">[${l.type.toUpperCase()}]</span> ${l.details}</div>`).join("");
+        }
+      } catch {}
+    }
+
+    async function updatePvPConfig() {
+      const enabled = document.getElementById("chkEnablePvP").checked;
+      const mode = document.getElementById("selCombatMode").value;
+      await fetch("/api/combat/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-auth-token": authToken },
+        body: JSON.stringify({ enabled, mode })
+      });
+      fetchCombatData();
+    }
+
+    async function startDuel() {
+      const opponent = document.getElementById("txtDuelOpponent").value.trim();
+      if (!opponent) return alert("Please enter player username.");
+      const res = await fetch("/api/combat/start-duel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-auth-token": authToken },
+        body: JSON.stringify({ opponent })
+      });
+      const data = await res.json();
+      alert(data.message);
+      fetchCombatData();
+    }
+
+    async function stopCombat() {
+      await fetch("/api/combat/stop", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-auth-token": authToken },
+        body: JSON.stringify({ reason: "Dashboard manual stop" })
+      });
+      fetchCombatData();
+    }
+
+    async function retreatCombat() {
+      await fetch("/api/combat/retreat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-auth-token": authToken },
+        body: JSON.stringify({ reason: "Emergency dashboard retreat" })
+      });
+      fetchCombatData();
+    }
+
+    async function triggerAutoEat() {
+      const res = await fetch("/api/survival/eat-now", {
+        method: "POST",
+        headers: { "x-auth-token": authToken }
+      });
+      const data = await res.json();
+      alert(data.success ? `Consumed ${data.foodName}! Restored ${data.foodLevelAfter - data.foodLevelBefore} food points.` : `Eating postponed: ${data.error}`);
+      fetchCombatData();
+    }
+
+    async function triggerEmergencyRecovery() {
+      const res = await fetch("/api/survival/emergency-recovery", {
+        method: "POST",
+        headers: { "x-auth-token": authToken }
+      });
+      const data = await res.json();
+      alert(data.message);
+      fetchCombatData();
+    }
+
+    async function calculateFoodForecast() {
+      const res = await fetch("/api/survival/forecast?minutes=20", {
+        headers: { "x-auth-token": authToken }
+      });
+      const data = await res.json();
+      const box = document.getElementById("foodForecastBox");
+      if (box) {
+        box.innerHTML = `<strong>20-Minute Survival Forecast:</strong><br>
+        Status: <span style="color: ${data.sufficient ? 'var(--emerald)' : 'var(--danger)'};">${data.sufficient ? 'SUFFICIENT' : 'INSUFFICIENT'}</span><br>
+        Available: ${data.currentAvailable} food points | Estimated Need: ${data.estimatedNeeded} points<br>
+        ${data.recommendations.join('<br>')}`;
+      }
+    }
+
+    // ======================== CAMPAIGNS & AUTONOMY ========================
+    async function fetchCampaignsData() {
+      try {
+        const [autoRes, campRes, capRes] = await Promise.all([
+          fetch("/api/autonomy/config", { headers: { "x-auth-token": authToken } }),
+          fetch("/api/campaigns", { headers: { "x-auth-token": authToken } }),
+          fetch("/api/capabilities", { headers: { "x-auth-token": authToken } })
+        ]);
+        const auto = await autoRes.json();
+        const camps = await campRes.json();
+        const caps = await capRes.json();
+
+        document.getElementById("selAutonomyLevel").value = auto.currentLevel;
+
+        const container = document.getElementById("campaignListContainer");
+        if (container) {
+          container.innerHTML = camps.map(c => `
+            <div class="card" style="margin-bottom: 8px;">
+              <div class="card-head">
+                <span class="card-title">${c.title}</span>
+                <span class="tag tag-${c.status === 'completed' ? 'healthy' : c.status === 'in_progress' ? 'degraded' : 'offline'}">${c.status.toUpperCase()}</span>
+              </div>
+              <p style="font-size: 11.5px; color: var(--text-muted); margin-bottom: 8px;">${c.description}</p>
+              <div style="font-size: 11px; font-family: var(--font-mono); margin-bottom: 10px;">
+                Stages: ${c.stages.map((s, idx) => `<span style="color: ${idx < c.currentStageIndex ? 'var(--emerald)' : idx === c.currentStageIndex ? 'var(--warning)' : 'var(--text-dim)'};">${idx + 1}. ${s.name}</span>`).join(" ➔ ")}
+              </div>
+              <div style="display: flex; gap: 8px;">
+                ${c.status !== 'in_progress' ? `<button class="btn btn-emerald" style="padding: 4px 10px; font-size: 11px;" onclick="startCampaign('${c.id}')">Start Campaign</button>` : `<button class="btn btn-dark" style="padding: 4px 10px; font-size: 11px;" onclick="pauseCampaign('${c.id}')">Pause</button>`}
+                ${c.status === 'in_progress' ? `<button class="btn btn-dark" style="padding: 4px 10px; font-size: 11px;" onclick="advanceCampaign('${c.id}')">Advance Stage ✔</button>` : ''}
+                <button class="btn btn-danger" style="padding: 4px 10px; font-size: 11px;" onclick="cancelCampaign('${c.id}')">Cancel</button>
+              </div>
+            </div>
+          `).join("");
+        }
+
+        const tbody = document.getElementById("capabilityTableBody");
+        if (tbody) {
+          tbody.innerHTML = caps.map(cap => `
+            <tr>
+              <td><strong>${cap.name}</strong></td>
+              <td><span class="tag tag-healthy">${cap.category}</span></td>
+              <td><span class="tag tag-${cap.status === 'implemented_tested' ? 'healthy' : cap.status === 'implemented_with_limitations' ? 'degraded' : 'offline'}">${cap.status}</span></td>
+              <td>Level ${cap.minAutonomyLevel}</td>
+              <td style="font-size: 11px; color: var(--text-dim);">${cap.limitations ? cap.limitations.join(', ') : 'None'}</td>
+            </tr>
+          `).join("");
+        }
+      } catch {}
+    }
+
+    async function changeAutonomyLevel() {
+      const level = Number(document.getElementById("selAutonomyLevel").value);
+      await fetch("/api/autonomy/level", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-auth-token": authToken },
+        body: JSON.stringify({ level })
+      });
+      fetchCampaignsData();
+    }
+
+    async function startCampaign(id) {
+      await fetch(`/api/campaigns/${id}/start`, { method: "POST", headers: { "x-auth-token": authToken } });
+      fetchCampaignsData();
+    }
+    async function pauseCampaign(id) {
+      await fetch(`/api/campaigns/${id}/pause`, { method: "POST", headers: { "x-auth-token": authToken } });
+      fetchCampaignsData();
+    }
+    async function cancelCampaign(id) {
+      await fetch(`/api/campaigns/${id}/cancel`, { method: "POST", headers: { "x-auth-token": authToken } });
+      fetchCampaignsData();
+    }
+    async function advanceCampaign(id) {
+      await fetch(`/api/campaigns/${id}/advance`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-auth-token": authToken },
+        body: JSON.stringify({ evidence: "Owner manually verified stage completion" })
+      });
+      fetchCampaignsData();
+    }
+
+    // ======================== WORLD & TRAVEL ========================
+    async function fetchWorldData() {
+      try {
+        const res = await fetch("/api/world/landmarks?includeStale=true", { headers: { "x-auth-token": authToken } });
+        const list = await res.json();
+        const tbody = document.getElementById("worldLandmarksTableBody");
+        if (tbody) {
+          tbody.innerHTML = list.map(l => `
+            <tr>
+              <td><strong>${l.name}</strong></td>
+              <td><span class="tag tag-healthy">${l.category}</span></td>
+              <td>X:${l.position.x} Y:${l.position.y} Z:${l.position.z}</td>
+              <td>${l.dimension}</td>
+              <td>${Math.round(l.confidence * 100)}%</td>
+              <td><span class="tag tag-${l.isStale ? 'offline' : 'healthy'}">${l.isStale ? 'STALE' : 'FRESH'}</span></td>
+            </tr>
+          `).join("");
+        }
+      } catch {}
+    }
+
+    async function submitNewLandmark() {
+      const name = document.getElementById("lmNewName").value.trim();
+      const category = document.getElementById("lmNewCategory").value;
+      const x = Number(document.getElementById("lmNewX").value);
+      const y = Number(document.getElementById("lmNewY").value);
+      const z = Number(document.getElementById("lmNewZ").value);
+      if (!name) return alert("Please enter landmark name.");
+
+      await fetch("/api/world/landmarks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-auth-token": authToken },
+        body: JSON.stringify({ name, category, position: { x, y, z }, dimension: "overworld" })
+      });
+      alert(`Recorded landmark ${name} in world memory!`);
+      fetchWorldData();
+    }
+
+    async function evaluateTravelReadiness() {
+      const x = Number(document.getElementById("travelTargetX").value);
+      const y = Number(document.getElementById("travelTargetY").value);
+      const z = Number(document.getElementById("travelTargetZ").value);
+      const targetDimension = document.getElementById("travelTargetDim").value;
+
+      const res = await fetch("/api/travel/checklist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-auth-token": authToken },
+        body: JSON.stringify({ targetPos: { x, y, z }, targetDimension })
+      });
+      const data = await res.json();
+      const container = document.getElementById("travelChecklistResults");
+      if (container) {
+        container.innerHTML = `
+          <div style="font-weight: 700; color: ${data.ready ? 'var(--emerald)' : 'var(--warning)'}; margin-bottom: 4px;">
+            Readiness: ${data.ready ? '✔ ALL CLEAR FOR DEPARTURE' : '⚠ READINESS GAPS DETECTED'} (Distance: ${data.estimatedCostBlocks} blocks)
+          </div>
+          ${data.checklist.map(c => `
+            <div>${c.satisfied ? '✔' : '❌'} <strong>${c.requirement}:</strong> ${c.details}</div>
+          `).join('')}
+        `;
+      }
+    }
+
+    // ======================== TRANSACTIONS & REPLAY ========================
+    async function fetchTransactionsData() {
+      try {
+        const [txRes, timeRes] = await Promise.all([
+          fetch("/api/transactions", { headers: { "x-auth-token": authToken } }),
+          fetch("/api/timeline?limit=30", { headers: { "x-auth-token": authToken } })
+        ]);
+        const txs = await txRes.json();
+        const timeline = await timeRes.json();
+
+        const tbody = document.getElementById("transactionsTableBody");
+        if (tbody) {
+          tbody.innerHTML = txs.map(tx => `
+            <tr>
+              <td><code>${tx.id.slice(0, 8)}</code></td>
+              <td><strong>${tx.blueprintName || 'Manual Build'}</strong></td>
+              <td>${tx.author}</td>
+              <td>${tx.totalBlocks} blocks</td>
+              <td><span class="tag tag-${tx.status === 'committed' ? 'healthy' : tx.status === 'rolled_back' ? 'degraded' : 'offline'}">${tx.status}</span></td>
+              <td>
+                ${tx.status === 'committed' ? `<button class="btn btn-danger" style="padding: 3px 8px; font-size: 11px;" onclick="rollbackTx('${tx.id}')">Rollback</button>` : ''}
+              </td>
+            </tr>
+          `).join("");
+        }
+
+        const timeContainer = document.getElementById("timelineContainer");
+        if (timeContainer) {
+          timeContainer.innerHTML = timeline.map(t => `
+            <div style="padding: 6px; background: rgba(255,255,255,0.02); border-left: 2px solid var(--emerald); border-radius: 4px;">
+              <div style="display:flex; justify-content:space-between; color: var(--text-dim);">
+                <span>${new Date(t.timestamp).toLocaleTimeString()} · [${t.category.toUpperCase()}]</span>
+                <span class="tag tag-${t.result === 'success' ? 'healthy' : 'offline'}" style="font-size:9px;">${t.result}</span>
+              </div>
+              <div style="color: #fff; font-weight:600; margin: 2px 0;">${t.validatedAction}</div>
+              <div style="color: var(--text-muted); font-size: 10.5px;">Observed: ${t.observationSummary}</div>
+              ${t.failureReason ? `<div style="color: var(--danger); font-size: 10.5px;">Error: ${t.failureReason}</div>` : ''}
+            </div>
+          `).join("");
+        }
+      } catch {}
+    }
+
+    async function rollbackTx(id) {
+      if (!confirm("Initiate safe rollback? Conflict detection will check if blocks were modified by other players.")) return;
+      const res = await fetch(`/api/transactions/${id}/rollback`, {
+        method: "POST",
+        headers: { "x-auth-token": authToken }
+      });
+      const data = await res.json();
+      alert(data.message);
+      fetchTransactionsData();
+    }
+
+    // ======================== VOICE & VISION ========================
+    let recognition = null;
+    const btnPTT = document.getElementById("btnVoicePTT");
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+      const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+      recognition = new SpeechRec();
+      recognition.continuous = false;
+      recognition.interimResults = false;
+
+      recognition.onstart = () => {
+        if (btnPTT) {
+          btnPTT.style.background = "var(--danger)";
+          btnPTT.textContent = "🔴 Listening...";
+        }
+      };
+
+      recognition.onend = () => {
+        if (btnPTT) {
+          btnPTT.style.background = "";
+          btnPTT.textContent = "🎙️ Voice PTT";
+        }
+      };
+
+      recognition.onresult = async (event) => {
+        const text = event.results[0][0].transcript;
+        if (!text) return;
+        const res = await fetch("/api/voice/command", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-auth-token": authToken },
+          body: JSON.stringify({ transcript: text })
+        });
+        const data = await res.json();
+        if ('speechSynthesis' in window) {
+          const u = new SpeechSynthesisUtterance(`Understood: ${text}`);
+          window.speechSynthesis.speak(u);
+        }
+        fetchTasks();
+      };
+
+      if (btnPTT) {
+        btnPTT.addEventListener("mousedown", () => {
+          try { recognition.start(); } catch {}
+        });
+        btnPTT.addEventListener("mouseup", () => {
+          try { recognition.stop(); } catch {}
+        });
+      }
+    }
+
+    document.getElementById("btnCaptureVision")?.addEventListener("click", async () => {
+      const res = await fetch("/api/vision/capture", { headers: { "x-auth-token": authToken } });
+      const data = await res.json();
+      if (!data.captured) {
+        alert(data.error || "Vision capture failed");
+        return;
+      }
+      alert(`[Vision Analysis Snapshot Captured]\n${data.disclaimer}`);
     });
 
     // Init

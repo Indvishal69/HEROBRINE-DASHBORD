@@ -43,7 +43,8 @@ export class BuildingEngine {
     blueprint: BlueprintRecord,
     origin: { x: number; y: number; z: number },
     startStep = 0,
-    onProgress?: (placed: number, total: number) => void
+    onProgress?: (placed: number, total: number) => void,
+    transactionId?: string
   ): Promise<{ placedCount: number; completed: boolean }> {
     if (!bot || !bot.entity) throw new Error("Bot is offline.");
 
@@ -107,6 +108,18 @@ export class BuildingEngine {
 
       if (placed) {
         placedCount++;
+        if (transactionId) {
+          const { buildTransactionManager } = await import("./build-transactions.js");
+          buildTransactionManager.recordChange(
+            transactionId,
+            targetPos.x,
+            targetPos.y,
+            targetPos.z,
+            (bot.game as any)?.dimension || "overworld",
+            existing?.name || "air",
+            b.blockName
+          );
+        }
         onProgress?.(placedCount, total);
       }
 

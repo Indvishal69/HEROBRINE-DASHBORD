@@ -1488,9 +1488,10 @@
       <h2 style="font-size: 16px; font-weight: 800; margin-bottom: 14px;">+ Add AI Credential</h2>
       <div class="form-group">
         <label>Provider</label>
-        <select id="newKeyProvider">
-          <option value="openrouter">OpenRouter (Recommended Hub)</option>
+        <select id="newKeyProvider" onchange="onKeyProviderChange()">
+          <option value="gemini">Google Gemini (Official API - Free Tier)</option>
           <option value="groq">Groq (Ultra-Fast Free Tier)</option>
+          <option value="openrouter">OpenRouter (Recommended Hub)</option>
           <option value="openai">OpenAI Direct</option>
           <option value="together">Together AI</option>
           <option value="fireworks">Fireworks AI</option>
@@ -1499,15 +1500,15 @@
       </div>
       <div class="form-group">
         <label>API Key</label>
-        <input type="password" id="newKeySecret" placeholder="Paste API Key (e.g. gsk_... or sk-or-...)">
+        <input type="password" id="newKeySecret" placeholder="Paste Gemini Key (AIzaSy...) or Groq (gsk_...)">
       </div>
       <div class="form-group">
         <label>Preferred Model</label>
-        <input type="text" id="newKeyModel" value="llama-3.3-70b-versatile">
+        <input type="text" id="newKeyModel" value="gemini-2.0-flash">
       </div>
       <div class="form-group">
         <label>Label</label>
-        <input type="text" id="newKeyLabel" placeholder="e.g. Groq Production Key">
+        <input type="text" id="newKeyLabel" placeholder="e.g. Gemini 2.0 Flash Key">
       </div>
       <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px;">
         <button class="btn btn-dark" onclick="closeAddKeyModal()">Cancel</button>
@@ -1807,7 +1808,42 @@
       fetchKeyPool();
     }
 
-    function openAddKeyModal() { document.getElementById("addKeyModal").style.display = "flex"; }
+    function onKeyProviderChange() {
+      const p = document.getElementById("newKeyProvider").value;
+      const m = document.getElementById("newKeyModel");
+      const l = document.getElementById("newKeyLabel");
+      const s = document.getElementById("newKeySecret");
+      if (p === "gemini") {
+        m.value = "gemini-2.0-flash";
+        l.placeholder = "e.g. Gemini 2.0 Flash Key";
+        s.placeholder = "Paste Gemini API Key (AIzaSy...)";
+      } else if (p === "groq") {
+        m.value = "llama-3.3-70b-versatile";
+        l.placeholder = "e.g. Groq Production Key";
+        s.placeholder = "Paste Groq API Key (gsk_...)";
+      } else if (p === "openrouter") {
+        m.value = "deepseek/deepseek-chat";
+        l.placeholder = "e.g. OpenRouter Key";
+        s.placeholder = "Paste OpenRouter API Key (sk-or-...)";
+      } else if (p === "openai") {
+        m.value = "gpt-4o-mini";
+        l.placeholder = "e.g. OpenAI Key";
+        s.placeholder = "Paste OpenAI API Key (sk-...)";
+      } else if (p === "together") {
+        m.value = "meta-llama/Llama-3.3-70B-Instruct-Turbo";
+        l.placeholder = "e.g. Together AI Key";
+        s.placeholder = "Paste Together API Key";
+      } else if (p === "fireworks") {
+        m.value = "accounts/fireworks/models/llama-v3p3-70b-instruct";
+        l.placeholder = "e.g. Fireworks Key";
+        s.placeholder = "Paste Fireworks API Key";
+      }
+    }
+
+    function openAddKeyModal() { 
+      document.getElementById("addKeyModal").style.display = "flex"; 
+      onKeyProviderChange();
+    }
     function closeAddKeyModal() { document.getElementById("addKeyModal").style.display = "none"; }
 
     async function submitAddKey() {

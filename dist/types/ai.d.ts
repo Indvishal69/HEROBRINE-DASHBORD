@@ -1,4 +1,4 @@
-export type AIProviderId = "openrouter" | "openai" | "groq" | "together" | "fireworks" | "custom";
+export type AIProviderId = "openrouter" | "openai" | "groq" | "gemini" | "together" | "fireworks" | "custom";
 export interface AIProviderPreset {
     id: AIProviderId;
     name: string;

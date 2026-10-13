@@ -152,13 +152,16 @@ describe("4. Chat Intent Parser & Security Suite", () => {
 });
 
 describe("5. AI Provider Presets Suite", () => {
-  it("should include all 5 required provider presets", () => {
+  it("should include all required provider presets including Google Gemini", () => {
     assert.ok(PROVIDER_PRESETS.openrouter, "OpenRouter preset must exist");
+    assert.ok(PROVIDER_PRESETS.gemini, "Gemini preset must exist");
     assert.ok(PROVIDER_PRESETS.groq, "Groq preset must exist");
     assert.ok(PROVIDER_PRESETS.openai, "OpenAI preset must exist");
     assert.ok(PROVIDER_PRESETS.together, "Together preset must exist");
     assert.ok(PROVIDER_PRESETS.fireworks, "Fireworks preset must exist");
     assert.ok(PROVIDER_PRESETS.custom, "Custom preset must exist");
+    assert.strictEqual(PROVIDER_PRESETS.gemini.defaultModel, "gemini-2.0-flash");
+    assert.strictEqual(PROVIDER_PRESETS.gemini.baseUrl, "https://generativelanguage.googleapis.com/v1beta/openai");
   });
 
   it("should configure Groq with llama-3.3-70b-versatile default", () => {

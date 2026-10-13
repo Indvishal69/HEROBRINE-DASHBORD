@@ -36,6 +36,17 @@ export const PROVIDER_PRESETS: Record<AIProviderId, AIProviderPreset> = {
       { id: "gemma2-9b-it", name: "Gemma 2 9B IT", contextLength: 8192, hasTools: false, isFree: true }
     ]
   },
+  gemini: {
+    id: "gemini",
+    name: "Google Gemini (Official API)",
+    baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
+    defaultModel: "gemini-2.0-flash",
+    models: [
+      { id: "gemini-2.0-flash", name: "Gemini 2.0 Flash (Fast & Multimodal)", contextLength: 1048576, hasTools: true, hasVision: true, isFree: true },
+      { id: "gemini-1.5-flash", name: "Gemini 1.5 Flash", contextLength: 1048576, hasTools: true, hasVision: true, isFree: true },
+      { id: "gemini-1.5-pro", name: "Gemini 1.5 Pro (Deep Reasoning)", contextLength: 2097152, hasTools: true, hasVision: true, isFree: false }
+    ]
+  },
   openai: {
     id: "openai",
     name: "OpenAI Direct",
@@ -108,7 +119,12 @@ export class AIProviderPool {
     const startTime = Date.now();
 
     try {
-      const response = await fetch(`${cred.baseUrl.replace(/\/+$/, "")}/chat/completions`, {
+      let endpoint = cred.baseUrl.replace(/\/+$/, "");
+      if (cred.provider === "gemini" && !endpoint.includes("/openai")) {
+        endpoint = `${endpoint}/openai`;
+      }
+
+      const response = await fetch(`${endpoint}/chat/completions`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${rawKey}`,
@@ -201,9 +217,14 @@ export class AIProviderPool {
       let modelToUse = cred.preferredModel;
       const startTime = Date.now();
 
+      let endpoint = cred.baseUrl.replace(/\/+$/, "");
+      if (cred.provider === "gemini" && !endpoint.includes("/openai")) {
+        endpoint = `${endpoint}/openai`;
+      }
+
       for (let attempt = 0; attempt <= this.runtimeConfig.maxRetries; attempt++) {
         try {
-          const res = await fetch(`${cred.baseUrl.replace(/\/+$/, "")}/chat/completions`, {
+          const res = await fetch(`${endpoint}/chat/completions`, {
             method: "POST",
             headers: {
               Authorization: `Bearer ${rawKey}`,
@@ -229,6 +250,14 @@ export class AIProviderPool {
             // Groq 404/400 model auto-failover
             if ((res.status === 404 || res.status === 400) && cred.provider === "groq") {
               const fallback = modelToUse === "llama-3.3-70b-versatile" ? "llama-3.1-8b-instant" : "llama-3.3-70b-versatile";
+              console.error(`[AIPool] Model ${modelToUse} failed (${errorMsg}). Trying fallback ${fallback}...`);
+              modelToUse = fallback;
+              continue;
+            }
+
+            // Gemini 404/400 model auto-failover
+            if ((res.status === 404 || res.status === 400) && cred.provider === "gemini") {
+              const fallback = modelToUse === "gemini-2.0-flash" ? "gemini-1.5-flash" : "gemini-2.0-flash";
               console.error(`[AIPool] Model ${modelToUse} failed (${errorMsg}). Trying fallback ${fallback}...`);
               modelToUse = fallback;
               continue;

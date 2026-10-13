@@ -2,6 +2,7 @@ export type AIProviderId =
   | "openrouter" 
   | "openai" 
   | "groq" 
+  | "gemini"
   | "together" 
   | "fireworks" 
   | "custom";

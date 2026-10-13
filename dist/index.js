@@ -49,7 +49,25 @@ if (CredentialRepo.getAll().length === 0) {
     const envGroq = process.env.GROQ_API_KEY;
     const envOpenRouter = process.env.OPENROUTER_API_KEY;
     const envOpenAI = process.env.OPENAI_API_KEY;
-    if (envGroq) {
+    const envGemini = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+    if (envGemini) {
+        const enc = encryptSecret(envGemini);
+        CredentialRepo.upsert({
+            id: crypto.randomUUID(),
+            label: "Google Gemini (Env Key)",
+            provider: "gemini",
+            encryptedKey: enc.ciphertext,
+            iv: enc.iv,
+            tag: enc.tag,
+            baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
+            preferredModel: "gemini-2.0-flash",
+            enabled: true,
+            health: "healthy",
+            requestsCount: 0,
+            failureCount: 0
+        });
+    }
+    else if (envGroq) {
         const enc = encryptSecret(envGroq);
         CredentialRepo.upsert({
             id: crypto.randomUUID(),

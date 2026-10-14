@@ -132,6 +132,11 @@ function initSchema(db: DatabaseSync): void {
       key TEXT PRIMARY KEY,
       value_json TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS active_sessions (
+      token TEXT PRIMARY KEY,
+      created_at INTEGER NOT NULL
+    );
   `);
 }
 
@@ -531,3 +536,29 @@ export const AppSettingsRepo = {
     `).run(key, JSON.stringify(value));
   }
 };
+
+export const SessionRepo = {
+  add(token: string): void {
+    try {
+      const db = getDatabase();
+      db.prepare("INSERT OR REPLACE INTO active_sessions (token, created_at) VALUES (?, ?)").run(token, Date.now());
+    } catch {}
+  },
+  has(token: string): boolean {
+    if (!token) return false;
+    try {
+      const db = getDatabase();
+      const row = db.prepare("SELECT token FROM active_sessions WHERE token = ?").get(token);
+      return Boolean(row);
+    } catch {
+      return false;
+    }
+  },
+  delete(token: string): void {
+    try {
+      const db = getDatabase();
+      db.prepare("DELETE FROM active_sessions WHERE token = ?").run(token);
+    } catch {}
+  }
+};
+

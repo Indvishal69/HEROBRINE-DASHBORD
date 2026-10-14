@@ -21,8 +21,11 @@ export class ManualControlManager {
         }
     }
     handleControlPress(bot, control, pressed) {
-        if (!bot || !this.active)
+        if (!bot)
             return;
+        if (!this.active) {
+            this.setManualActive(true, bot);
+        }
         if (pressed) {
             this.heldControls.add(control);
             if (bot.pathfinder)
@@ -37,10 +40,55 @@ export class ManualControlManager {
         catch { }
     }
     handleLook(bot, yaw, pitch) {
-        if (!bot || !this.active)
+        if (!bot)
             return;
+        if (!this.active) {
+            this.setManualActive(true, bot);
+        }
         try {
             bot.look(yaw, pitch, true).catch(() => { });
+        }
+        catch { }
+    }
+    handleTurn(bot, deltaYaw, deltaPitch = 0) {
+        if (!bot)
+            return;
+        if (!this.active) {
+            this.setManualActive(true, bot);
+        }
+        try {
+            const curYaw = bot.entity?.yaw || 0;
+            const curPitch = bot.entity?.pitch || 0;
+            bot.look(curYaw + deltaYaw, curPitch + deltaPitch, true).catch(() => { });
+        }
+        catch { }
+    }
+    handleAttack(bot) {
+        if (!bot)
+            return;
+        if (!this.active) {
+            this.setManualActive(true, bot);
+        }
+        try {
+            const target = bot.nearestEntity((e) => (e.type === "mob" || e.type === "player") &&
+                bot.entity.position.distanceTo(e.position) <= 3.8);
+            if (target) {
+                bot.attack(target);
+            }
+            else {
+                bot.swingArm("right");
+            }
+        }
+        catch { }
+    }
+    handleUse(bot) {
+        if (!bot)
+            return;
+        if (!this.active) {
+            this.setManualActive(true, bot);
+        }
+        try {
+            bot.activateItem();
         }
         catch { }
     }

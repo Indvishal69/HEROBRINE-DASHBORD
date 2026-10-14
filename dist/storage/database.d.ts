@@ -41,3 +41,8 @@ export declare const AppSettingsRepo: {
     get<T>(key: string, defaultValue: T): T;
     set(key: string, value: unknown): void;
 };
+export declare const SessionRepo: {
+    add(token: string): void;
+    has(token: string): boolean;
+    delete(token: string): void;
+};

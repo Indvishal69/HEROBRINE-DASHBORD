@@ -116,6 +116,7 @@ export class AIProviderPool {
     if (!cred) throw new Error("Credential not found.");
 
     const rawKey = decryptSecret({ ciphertext: cred.encryptedKey, iv: cred.iv, tag: cred.tag });
+    const cleanKey = rawKey.trim().replace(/^["']|["']$/g, "").trim();
     const startTime = Date.now();
 
     try {
@@ -124,14 +125,21 @@ export class AIProviderPool {
         endpoint = `${endpoint}/openai`;
       }
 
+      const headers: Record<string, string> = {
+        Authorization: `Bearer ${cleanKey}`,
+        "Content-Type": "application/json"
+      };
+      if (cred.provider === "openrouter") {
+        headers["HTTP-Referer"] = "https://github.com/minecraft-nexus-ai";
+        headers["X-Title"] = "Minecraft Nexus AI";
+      }
+      if (cred.provider === "gemini") {
+        headers["x-goog-api-key"] = cleanKey;
+      }
+
       const response = await fetch(`${endpoint}/chat/completions`, {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${rawKey}`,
-          "Content-Type": "application/json",
-          "HTTP-Referer": "https://github.com/minecraft-nexus-ai",
-          "X-Title": "Minecraft Nexus AI"
-        },
+        headers,
         body: JSON.stringify({
           model: cred.preferredModel,
           messages: [{ role: "user", content: "Reply with READY." }],
@@ -144,8 +152,23 @@ export class AIProviderPool {
       const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        const errorMsg = String(data?.error?.message || data?.message || `HTTP ${response.status}`);
-        cred.health = response.status === 401 ? "invalid_key" : response.status === 429 ? "rate_limited" : "degraded";
+        let errorMsg = "";
+        if (Array.isArray(data) && data[0]?.error?.message) {
+          errorMsg = String(data[0].error.message);
+        } else if (data?.error?.message) {
+          errorMsg = String(data.error.message);
+        } else if (typeof data?.error === "string") {
+          errorMsg = data.error;
+        } else if (data?.message) {
+          errorMsg = String(data.message);
+        } else {
+          errorMsg = `HTTP ${response.status} ${response.statusText || ""}`.trim();
+        }
+
+        const isAuthError = response.status === 401 || response.status === 403 || 
+          (response.status === 400 && (errorMsg.toLowerCase().includes("api key") || errorMsg.toLowerCase().includes("key not valid") || errorMsg.toLowerCase().includes("invalid_argument")));
+
+        cred.health = isAuthError ? "invalid_key" : response.status === 429 ? "rate_limited" : "degraded";
         cred.lastErrorAt = Date.now();
         cred.lastErrorMessage = errorMsg;
         cred.failureCount++;
@@ -214,6 +237,7 @@ export class AIProviderPool {
         continue;
       }
 
+      const cleanKey = rawKey.trim().replace(/^["']|["']$/g, "").trim();
       let modelToUse = cred.preferredModel;
       const startTime = Date.now();
 
@@ -222,16 +246,23 @@ export class AIProviderPool {
         endpoint = `${endpoint}/openai`;
       }
 
+      const headers: Record<string, string> = {
+        Authorization: `Bearer ${cleanKey}`,
+        "Content-Type": "application/json"
+      };
+      if (cred.provider === "openrouter") {
+        headers["HTTP-Referer"] = "https://github.com/minecraft-nexus-ai";
+        headers["X-Title"] = "Minecraft Nexus AI";
+      }
+      if (cred.provider === "gemini") {
+        headers["x-goog-api-key"] = cleanKey;
+      }
+
       for (let attempt = 0; attempt <= this.runtimeConfig.maxRetries; attempt++) {
         try {
           const res = await fetch(`${endpoint}/chat/completions`, {
             method: "POST",
-            headers: {
-              Authorization: `Bearer ${rawKey}`,
-              "Content-Type": "application/json",
-              "HTTP-Referer": "https://github.com/minecraft-nexus-ai",
-              "X-Title": "Minecraft Nexus AI"
-            },
+            headers,
             body: JSON.stringify({
               model: modelToUse,
               messages: requestMessages,
@@ -245,7 +276,18 @@ export class AIProviderPool {
           const data = await res.json().catch(() => ({}));
 
           if (!res.ok) {
-            const errorMsg = String(data?.error?.message || data?.message || `HTTP ${res.status}`);
+            let errorMsg = "";
+            if (Array.isArray(data) && data[0]?.error?.message) {
+              errorMsg = String(data[0].error.message);
+            } else if (data?.error?.message) {
+              errorMsg = String(data.error.message);
+            } else if (typeof data?.error === "string") {
+              errorMsg = data.error;
+            } else if (data?.message) {
+              errorMsg = String(data.message);
+            } else {
+              errorMsg = `HTTP ${res.status} ${res.statusText || ""}`.trim();
+            }
 
             // Groq 404/400 model auto-failover
             if ((res.status === 404 || res.status === 400) && cred.provider === "groq") {
@@ -255,8 +297,11 @@ export class AIProviderPool {
               continue;
             }
 
-            // Gemini 404/400 model auto-failover
-            if ((res.status === 404 || res.status === 400) && cred.provider === "gemini") {
+            // Gemini 404/400 model auto-failover (if not invalid key)
+            const isInvalidKey = res.status === 401 || res.status === 403 ||
+              (res.status === 400 && (errorMsg.toLowerCase().includes("api key") || errorMsg.toLowerCase().includes("key not valid") || errorMsg.toLowerCase().includes("invalid_argument")));
+
+            if (!isInvalidKey && (res.status === 404 || res.status === 400) && cred.provider === "gemini") {
               const fallback = modelToUse === "gemini-2.0-flash" ? "gemini-1.5-flash" : "gemini-2.0-flash";
               console.error(`[AIPool] Model ${modelToUse} failed (${errorMsg}). Trying fallback ${fallback}...`);
               modelToUse = fallback;
@@ -275,7 +320,7 @@ export class AIProviderPool {
               break; // Try next credential
             }
 
-            if (res.status === 401 || res.status === 403) {
+            if (isInvalidKey) {
               cred.health = "invalid_key";
               cred.lastErrorAt = Date.now();
               cred.lastErrorMessage = errorMsg;

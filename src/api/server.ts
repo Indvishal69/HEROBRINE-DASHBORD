@@ -17,7 +17,8 @@ import {
   BlueprintRepo, 
   LandmarkRepo, 
   PermissionRepo, 
-  AuditRepo 
+  AuditRepo,
+  SessionRepo
 } from "../storage/database.js";
 import { storage } from "../engine/storage-manager.js";
 import { farming } from "../engine/farming-manager.js";
@@ -79,7 +80,7 @@ export function startServer(port: number) {
   // 2. AUTHENTICATION HELPERS & ROUTES
   function checkToken(req: express.Request): boolean {
     const token = (req.headers["x-auth-token"] || (req.headers.authorization || "").replace(/^Bearer\s+/i, "")) as string;
-    return Boolean(token && activeSessions.has(token));
+    return Boolean(token && (activeSessions.has(token) || SessionRepo.has(token)));
   }
 
   function requireAuth(req: express.Request, res: express.Response, next: express.NextFunction) {
@@ -94,6 +95,7 @@ export function startServer(port: number) {
     if (password === DASHBOARD_PASSWORD) {
       const token = crypto.randomUUID();
       activeSessions.add(token);
+      SessionRepo.add(token);
       return res.json({ ok: true, token, authenticated: true });
     }
     return res.status(401).json({ error: "Password galat hai! Please try again." });
@@ -105,7 +107,10 @@ export function startServer(port: number) {
 
   app.post("/api/auth/logout", (req, res) => {
     const token = (req.headers["x-auth-token"] || "") as string;
-    if (token) activeSessions.delete(token);
+    if (token) {
+      activeSessions.delete(token);
+      SessionRepo.delete(token);
+    }
     return res.json({ ok: true, authenticated: false });
   });
 
@@ -135,13 +140,13 @@ export function startServer(port: number) {
 
   io.use((socket, next) => {
     const token = socket.handshake.auth?.token || socket.handshake.query?.token;
-    (socket as any).authenticated = Boolean(token && activeSessions.has(String(token)));
+    (socket as any).authenticated = Boolean(token && (activeSessions.has(String(token)) || SessionRepo.has(String(token))));
     next();
   });
 
   io.on("connection", (socket) => {
     socket.on("authenticate", ({ token }) => {
-      (socket as any).authenticated = Boolean(token && activeSessions.has(String(token)));
+      (socket as any).authenticated = Boolean(token && (activeSessions.has(String(token)) || SessionRepo.has(String(token))));
       socket.emit("auth-result", { authenticated: (socket as any).authenticated });
     });
 
@@ -158,6 +163,30 @@ export function startServer(port: number) {
       const b = botService.getBot();
       if (b && data?.yaw != null && data?.pitch != null) {
         manualControl.handleLook(b, Number(data.yaw), Number(data.pitch));
+      }
+    });
+
+    socket.on("bot-turn", (data) => {
+      if (!(socket as any).authenticated) return;
+      const b = botService.getBot();
+      if (b && (data?.deltaYaw != null || data?.deltaPitch != null)) {
+        manualControl.handleTurn(b, Number(data.deltaYaw || 0), Number(data.deltaPitch || 0));
+      }
+    });
+
+    socket.on("bot-action", (data) => {
+      if (!(socket as any).authenticated) return;
+      const b = botService.getBot();
+      if (!b) return;
+      if (data?.action === "attack") {
+        manualControl.handleAttack(b);
+      } else if (data?.action === "use") {
+        manualControl.handleUse(b);
+      } else if (data?.action === "jump") {
+        manualControl.handleControlPress(b, "jump", true);
+        setTimeout(() => manualControl.handleControlPress(b, "jump", false), 350);
+      } else if (data?.action === "stop") {
+        manualControl.releaseAll(b);
       }
     });
 
@@ -213,6 +242,51 @@ export function startServer(port: number) {
     res.json({ ok: true, state: botService.getState() });
   });
 
+  // Manual Control REST APIs
+  app.post("/api/control/press", requireAuth, (req, res) => {
+    const { control, pressed } = req.body;
+    const b = botService.getBot();
+    if (!b) return res.status(400).json({ error: "Bot is not connected to a server." });
+    manualControl.handleControlPress(b, String(control), Boolean(pressed));
+    res.json({ ok: true, active: manualControl.isManualActive() });
+  });
+
+  app.post("/api/control/look", requireAuth, (req, res) => {
+    const { yaw, pitch, deltaYaw, deltaPitch } = req.body;
+    const b = botService.getBot();
+    if (!b) return res.status(400).json({ error: "Bot is not connected to a server." });
+    if (deltaYaw != null || deltaPitch != null) {
+      manualControl.handleTurn(b, Number(deltaYaw || 0), Number(deltaPitch || 0));
+    } else if (yaw != null && pitch != null) {
+      manualControl.handleLook(b, Number(yaw), Number(pitch));
+    }
+    res.json({ ok: true, active: manualControl.isManualActive() });
+  });
+
+  app.post("/api/control/action", requireAuth, (req, res) => {
+    const { action } = req.body;
+    const b = botService.getBot();
+    if (!b) return res.status(400).json({ error: "Bot is not connected to a server." });
+    if (action === "attack") {
+      manualControl.handleAttack(b);
+    } else if (action === "use") {
+      manualControl.handleUse(b);
+    } else if (action === "jump") {
+      manualControl.handleControlPress(b, "jump", true);
+      setTimeout(() => manualControl.handleControlPress(b, "jump", false), 350);
+    } else if (action === "stop") {
+      manualControl.releaseAll(b);
+    }
+    res.json({ ok: true, active: manualControl.isManualActive() });
+  });
+
+  app.post("/api/control/mode", requireAuth, (req, res) => {
+    const { active } = req.body;
+    manualControl.setManualActive(Boolean(active), botService.getBot());
+    io.emit("manual-mode:status", { active: manualControl.isManualActive() });
+    res.json({ ok: true, active: manualControl.isManualActive() });
+  });
+
   // AI Pool Endpoints
   app.get("/api/ai/pool", requireAuth, (_req, res) => {
     const pool = CredentialRepo.getAll().map((c) => ({
@@ -226,9 +300,10 @@ export function startServer(port: number) {
 
   app.post("/api/ai/pool/add", requireAuth, (req, res) => {
     const { label, provider, apiKey, baseUrl, preferredModel, spendBudgetLimit } = req.body;
-    if (!apiKey || apiKey.length < 5) return res.status(400).json({ error: "Invalid API key." });
+    const sanitizedKey = String(apiKey || "").trim().replace(/^["']|["']$/g, "").trim();
+    if (!sanitizedKey || sanitizedKey.length < 5) return res.status(400).json({ error: "Invalid API key." });
 
-    const enc = encryptSecret(apiKey.trim());
+    const enc = encryptSecret(sanitizedKey);
     const preset = PROVIDER_PRESETS[provider as keyof typeof PROVIDER_PRESETS] || PROVIDER_PRESETS.openrouter;
 
     const entry = {

@@ -694,6 +694,57 @@
             <button class="btn btn-dark" id="btnUseManual">📦 Use / Place</button>
           </div>
         </div>
+
+        <div class="card" style="margin-top: 16px;">
+          <div class="card-head">
+            <span class="card-title">🎮 Manual Bot Controls & Action Pad</span>
+            <span id="manualPadStatus" style="font-size: 11px; color: var(--text-dim);">Mode: Auto-Engaged</span>
+          </div>
+          <div style="display: flex; gap: 24px; flex-wrap: wrap; align-items: center; justify-content: space-around; padding: 12px 0;">
+            <!-- D-PAD MOVEMENT -->
+            <div style="display: flex; flex-direction: column; align-items: center; gap: 6px;">
+              <div style="font-size: 11px; font-weight: 700; color: var(--text-muted); margin-bottom: 4px;">MOVEMENT (WASD)</div>
+              <div>
+                <button class="btn btn-dark dpad-btn" data-control="forward" style="width: 52px; height: 46px; font-weight: 800; font-size: 16px;">W</button>
+              </div>
+              <div style="display: flex; gap: 6px;">
+                <button class="btn btn-dark dpad-btn" data-control="left" style="width: 52px; height: 46px; font-weight: 800; font-size: 16px;">A</button>
+                <button class="btn btn-dark dpad-btn" data-control="back" style="width: 52px; height: 46px; font-weight: 800; font-size: 16px;">S</button>
+                <button class="btn btn-dark dpad-btn" data-control="right" style="width: 52px; height: 46px; font-weight: 800; font-size: 16px;">D</button>
+              </div>
+            </div>
+
+            <!-- MOBILITY CONTROLS -->
+            <div style="display: flex; flex-direction: column; gap: 8px; min-width: 140px;">
+              <div style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-align: center;">MOBILITY</div>
+              <button class="btn btn-dark dpad-btn" data-control="jump" style="padding: 10px; font-weight: 700;">⬆ Jump (Space)</button>
+              <button class="btn btn-dark dpad-btn" data-control="sneak" style="padding: 10px; font-weight: 700;">⬇ Sneak (Shift)</button>
+              <button class="btn btn-dark dpad-btn" data-control="sprint" style="padding: 10px; font-weight: 700;">⚡ Sprint (Ctrl)</button>
+            </div>
+
+            <!-- CAMERA / ROTATION -->
+            <div style="display: flex; flex-direction: column; gap: 8px; min-width: 140px;">
+              <div style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-align: center;">CAMERA TURN</div>
+              <div style="display: flex; gap: 6px;">
+                <button class="btn btn-dark" id="padTurnLeft" style="flex: 1; padding: 10px;">⬅ Turn Left</button>
+                <button class="btn btn-dark" id="padTurnRight" style="flex: 1; padding: 10px;">Turn Right ➡</button>
+              </div>
+              <div style="display: flex; gap: 6px;">
+                <button class="btn btn-dark" id="padLookUp" style="flex: 1; padding: 10px;">⬆ Look Up</button>
+                <button class="btn btn-dark" id="padLookDown" style="flex: 1; padding: 10px;">⬇ Look Down</button>
+              </div>
+              <button class="btn btn-danger" id="padEmergencyStop" style="padding: 8px; font-weight: 700;">🛑 Emergency Stop</button>
+            </div>
+
+            <!-- COMBAT & INTERACT -->
+            <div style="display: flex; flex-direction: column; gap: 8px; min-width: 140px;">
+              <div style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-align: center;">COMBAT & ACTIONS</div>
+              <button class="btn btn-danger" id="padAttack" style="padding: 10px; font-weight: 700;">⚔️ Attack / Strike</button>
+              <button class="btn btn-emerald" id="padUse" style="padding: 10px; font-weight: 700;">📦 Use / Place Block</button>
+              <button class="btn btn-dark" id="padToggleManual" style="padding: 8px;">🎮 Toggle Manual: ON</button>
+            </div>
+          </div>
+        </div>
       </section>
 
       <!-- PAGE 3: AI BRAIN -->
@@ -1538,10 +1589,34 @@
 
   <!-- JAVASCRIPT LOGIC -->
   <script>
-    const socket = io();
     let authToken = localStorage.getItem("nexus_token") || "";
+    const socket = io({
+      auth: { token: authToken },
+      query: { token: authToken },
+      reconnection: true,
+      reconnectionAttempts: 50,
+      reconnectionDelay: 1000
+    });
     let currentState = null;
     let isManualActive = false;
+
+    socket.on("connect", () => {
+      if (authToken) {
+        socket.emit("authenticate", { token: authToken });
+      }
+    });
+
+    socket.on("auth-result", (data) => {
+      if (!data.authenticated) {
+        console.warn("[Nexus Socket] Authentication required.");
+        checkAuth();
+      }
+    });
+
+    socket.on("manual-mode:status", (data) => {
+      isManualActive = Boolean(data.active);
+      updateManualControlUI();
+    });
 
     // Navigation Switching
     document.querySelectorAll(".nav-item").forEach(item => {
@@ -1612,6 +1687,10 @@
     async function fetchState() {
       try {
         const res = await fetch("/api/state", { headers: { "x-auth-token": authToken } });
+        if (res.status === 401) {
+          checkAuth();
+          return;
+        }
         const state = await res.json();
         updateUI(state);
       } catch {}
@@ -1699,28 +1778,157 @@
       });
     });
 
-    // Manual Mode Toggle
-    const manualBtn = document.getElementById("manualModeBtn");
-    manualBtn?.addEventListener("click", () => {
+    // Manual Control Engine & Auto-Activation
+    function updateManualControlUI() {
+      const manualBtn = document.getElementById("manualModeBtn");
+      if (manualBtn) {
+        manualBtn.className = `manual-mode-pill ${isManualActive ? "active" : ""}`;
+        manualBtn.textContent = `🎮 MANUAL CONTROL: ${isManualActive ? "ACTIVE (WASD)" : "OFF"}`;
+      }
+      const padToggle = document.getElementById("padToggleManual");
+      if (padToggle) {
+        padToggle.textContent = isManualActive ? "🎮 Manual Mode: ACTIVE" : "🎮 Manual Mode: OFF";
+        padToggle.className = isManualActive ? "btn btn-emerald" : "btn btn-dark";
+      }
+      const padStatus = document.getElementById("manualPadStatus");
+      if (padStatus) {
+        padStatus.textContent = isManualActive ? "Mode: ACTIVE (Input Live)" : "Mode: Standby (Click any control to activate)";
+        padStatus.style.color = isManualActive ? "var(--emerald)" : "var(--text-dim)";
+      }
+    }
+
+    function toggleManualMode() {
       isManualActive = !isManualActive;
-      manualBtn.className = `manual-mode-pill ${isManualActive ? "active" : ""}`;
-      manualBtn.textContent = `🎮 MANUAL CONTROL: ${isManualActive ? "ACTIVE (WASD)" : "OFF"}`;
-      socket.emit("manual-mode", { active: isManualActive });
+      updateManualControlUI();
+      if (socket && socket.connected) {
+        socket.emit("manual-mode", { active: isManualActive });
+      }
+      fetch("/api/control/mode", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-auth-token": authToken },
+        body: JSON.stringify({ active: isManualActive })
+      }).catch(() => {});
+    }
+
+    function ensureManualActive() {
+      if (!isManualActive) {
+        isManualActive = true;
+        updateManualControlUI();
+        if (socket && socket.connected) {
+          socket.emit("manual-mode", { active: true });
+        }
+        fetch("/api/control/mode", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-auth-token": authToken },
+          body: JSON.stringify({ active: true })
+        }).catch(() => {});
+      }
+    }
+
+    function sendBotControl(control, pressed) {
+      ensureManualActive();
+      if (socket && socket.connected) {
+        socket.emit("bot-control", { control, pressed });
+      }
+      fetch("/api/control/press", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-auth-token": authToken },
+        body: JSON.stringify({ control, pressed })
+      }).catch(() => {});
+    }
+
+    function sendBotTurn(deltaYaw, deltaPitch = 0) {
+      ensureManualActive();
+      if (socket && socket.connected) {
+        socket.emit("bot-turn", { deltaYaw, deltaPitch });
+      }
+      fetch("/api/control/look", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-auth-token": authToken },
+        body: JSON.stringify({ deltaYaw, deltaPitch })
+      }).catch(() => {});
+    }
+
+    function sendBotAction(action) {
+      ensureManualActive();
+      if (socket && socket.connected) {
+        socket.emit("bot-action", { action });
+      }
+      fetch("/api/control/action", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-auth-token": authToken },
+        body: JSON.stringify({ action })
+      }).catch(() => {});
+    }
+
+    // Manual Mode Toggle buttons
+    document.getElementById("manualModeBtn")?.addEventListener("click", toggleManualMode);
+    document.getElementById("padToggleManual")?.addEventListener("click", toggleManualMode);
+
+    // 3D Viewer Overlay buttons
+    document.getElementById("btnLookLeft")?.addEventListener("click", () => sendBotTurn(0.4, 0));
+    document.getElementById("btnLookRight")?.addEventListener("click", () => sendBotTurn(-0.4, 0));
+    document.getElementById("btnAttackManual")?.addEventListener("click", () => sendBotAction("attack"));
+    document.getElementById("btnUseManual")?.addEventListener("click", () => sendBotAction("use"));
+
+    // Pad camera & action buttons
+    document.getElementById("padTurnLeft")?.addEventListener("click", () => sendBotTurn(0.4, 0));
+    document.getElementById("padTurnRight")?.addEventListener("click", () => sendBotTurn(-0.4, 0));
+    document.getElementById("padLookUp")?.addEventListener("click", () => sendBotTurn(0, 0.3));
+    document.getElementById("padLookDown")?.addEventListener("click", () => sendBotTurn(0, -0.3));
+    document.getElementById("padAttack")?.addEventListener("click", () => sendBotAction("attack"));
+    document.getElementById("padUse")?.addEventListener("click", () => sendBotAction("use"));
+    document.getElementById("padEmergencyStop")?.addEventListener("click", () => {
+      sendBotAction("stop");
+      isManualActive = false;
+      updateManualControlUI();
     });
 
-    // WASD Movement
-    const keys = { KeyW: "forward", KeyS: "back", KeyA: "left", KeyD: "right", Space: "jump", ShiftLeft: "sneak", ControlLeft: "sprint" };
+    // D-Pad Buttons (touch + mouse pointer events)
+    document.querySelectorAll(".dpad-btn").forEach(btn => {
+      const ctrl = btn.dataset.control;
+      if (!ctrl) return;
+      const startPress = (e) => {
+        e.preventDefault();
+        sendBotControl(ctrl, true);
+        btn.classList.add("btn-emerald");
+      };
+      const endPress = (e) => {
+        e.preventDefault();
+        sendBotControl(ctrl, false);
+        btn.classList.remove("btn-emerald");
+      };
+      btn.addEventListener("pointerdown", startPress);
+      btn.addEventListener("pointerup", endPress);
+      btn.addEventListener("pointerleave", endPress);
+      btn.addEventListener("pointercancel", endPress);
+    });
+
+    // Keyboard WASD Controls
+    const keys = { 
+      KeyW: "forward", 
+      KeyS: "back", 
+      KeyA: "left", 
+      KeyD: "right", 
+      Space: "jump", 
+      ShiftLeft: "sneak", 
+      ShiftRight: "sneak",
+      ControlLeft: "sprint", 
+      ControlRight: "sprint" 
+    };
+
     window.addEventListener("keydown", (e) => {
-      if (!isManualActive || document.activeElement?.tagName === "INPUT") return;
+      if (document.activeElement?.tagName === "INPUT" || document.activeElement?.tagName === "TEXTAREA") return;
       if (keys[e.code]) {
         e.preventDefault();
-        socket.emit("bot-control", { control: keys[e.code], pressed: true });
+        sendBotControl(keys[e.code], true);
       }
     });
+
     window.addEventListener("keyup", (e) => {
-      if (!isManualActive) return;
+      if (document.activeElement?.tagName === "INPUT" || document.activeElement?.tagName === "TEXTAREA") return;
       if (keys[e.code]) {
-        socket.emit("bot-control", { control: keys[e.code], pressed: false });
+        sendBotControl(keys[e.code], false);
       }
     });
 
@@ -1796,16 +2004,29 @@
     }
 
     async function testKey(id) {
-      const res = await fetch(`/api/ai/pool/${id}/test`, { method: "POST", headers: { "x-auth-token": authToken } });
-      const data = await res.json();
-      alert(data.ok ? `Success: ${data.message}` : `Failed: ${data.message}`);
-      fetchKeyPool();
+      try {
+        const res = await fetch(`/api/ai/pool/${id}/test`, { method: "POST", headers: { "x-auth-token": authToken } });
+        if (res.status === 401) {
+          checkAuth();
+          return alert("Session expired. Please unlock dashboard first.");
+        }
+        const data = await res.json();
+        const errText = data.message || data.error || ('HTTP ' + res.status);
+        alert(data.ok ? `Success: ${data.message}` : `Failed: ${errText}`);
+        fetchKeyPool();
+      } catch (err) {
+        alert("Network error: " + (err.message || err));
+      }
     }
 
     async function deleteKey(id) {
       if (!confirm("Delete this API key from the pool?")) return;
-      await fetch(`/api/ai/pool/${id}`, { method: "DELETE", headers: { "x-auth-token": authToken } });
-      fetchKeyPool();
+      try {
+        await fetch(`/api/ai/pool/${id}`, { method: "DELETE", headers: { "x-auth-token": authToken } });
+        fetchKeyPool();
+      } catch (err) {
+        alert("Network error: " + (err.message || err));
+      }
     }
 
     function onKeyProviderChange() {
@@ -1854,15 +2075,32 @@
 
       if (!apiKey) return alert("Please enter an API key.");
 
-      await fetch("/api/ai/pool/add", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-auth-token": authToken },
-        body: JSON.stringify({ provider, apiKey, preferredModel, label })
-      });
+      try {
+        const res = await fetch("/api/ai/pool/add", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-auth-token": authToken },
+          body: JSON.stringify({ provider, apiKey, preferredModel, label })
+        });
+        if (res.status === 401) {
+          checkAuth();
+          return alert("Session expired. Please unlock dashboard first.");
+        }
+        const data = await res.json();
+        if (!res.ok || !data.ok) {
+          alert(`Error saving credential: ${data.error || 'Server error'}`);
+          return;
+        }
 
-      closeAddKeyModal();
-      document.getElementById("newKeySecret").value = "";
-      fetchKeyPool();
+        closeAddKeyModal();
+        document.getElementById("newKeySecret").value = "";
+        fetchKeyPool();
+
+        if (data.entry?.id) {
+          testKey(data.entry.id);
+        }
+      } catch (err) {
+        alert("Network error: " + (err.message || err));
+      }
     }
 
     // Tasks Fetching

@@ -122,6 +122,11 @@ function initSchema(db) {
       key TEXT PRIMARY KEY,
       value_json TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS active_sessions (
+      token TEXT PRIMARY KEY,
+      created_at INTEGER NOT NULL
+    );
   `);
 }
 // ======================== API CREDENTIALS REPOSITORY ========================
@@ -472,5 +477,33 @@ export const AppSettingsRepo = {
       INSERT INTO app_settings (key, value_json) VALUES (?, ?)
       ON CONFLICT(key) DO UPDATE SET value_json = excluded.value_json
     `).run(key, JSON.stringify(value));
+    }
+};
+export const SessionRepo = {
+    add(token) {
+        try {
+            const db = getDatabase();
+            db.prepare("INSERT OR REPLACE INTO active_sessions (token, created_at) VALUES (?, ?)").run(token, Date.now());
+        }
+        catch { }
+    },
+    has(token) {
+        if (!token)
+            return false;
+        try {
+            const db = getDatabase();
+            const row = db.prepare("SELECT token FROM active_sessions WHERE token = ?").get(token);
+            return Boolean(row);
+        }
+        catch {
+            return false;
+        }
+    },
+    delete(token) {
+        try {
+            const db = getDatabase();
+            db.prepare("DELETE FROM active_sessions WHERE token = ?").run(token);
+        }
+        catch { }
     }
 };
